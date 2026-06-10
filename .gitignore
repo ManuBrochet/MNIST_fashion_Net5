@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Virtual environment
+venv
+
+# VSCode/VSCodium
+.vscode/
+
+# OS
+.DS_Store
+
+# Other non useful files...
+images
+images_few
+
+results
+results_old
+
+benchmark_results
+benchmark_results_old
+
+
+checkpoints
+
+Muon-master
+
+MLP
+
+plots

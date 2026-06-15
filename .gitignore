@@ -18,10 +18,12 @@ images_few
 
 results
 results_old
+results_main
 
 benchmark_results
 benchmark_results_old
 
+data
 
 checkpoints
 

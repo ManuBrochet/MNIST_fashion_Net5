@@ -1,0 +1,19 @@
+Input : 1 x 28 x 28
+
+Conv1 : 6 filtres 5x5
+ReLU
+AvgPool 2x2
+
+Conv2 : 16 filtres 5x5
+ReLU
+AvgPool 2x2
+
+Flatten
+
+FC1 : 256 -> 120
+ReLU
+
+FC2 : 120 -> 84
+ReLU
+
+FC3 : 84 -> 10

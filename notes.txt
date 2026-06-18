@@ -17,3 +17,17 @@ FC2 : 120 -> 84
 ReLU
 
 FC3 : 84 -> 10
+
+
+
+Réu du 16 / 06
+
+Faire plus de Test 
+Fixer les poids de la partie CNN
+
+warm up for LR
+
+Comparaison avec Muon
+Etat de l'art
+Génération des résultats 
+12 pages + 1 de biblio

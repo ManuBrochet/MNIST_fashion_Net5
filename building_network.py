@@ -48,7 +48,7 @@ class ReducedLinear(nn.Module):
 
 class LeNet5(nn.Module):
 
-    def __init__(self, rank_fc, optimizer):
+    def __init__(self, rank_fc, optimizer, taille_couche1 = 120, taille_couche2 = 84):
 
         super().__init__()
 
@@ -74,18 +74,18 @@ class LeNet5(nn.Module):
         if optimizer == "Reduced_network":
             self.fc1 = ReducedLinear(
                 256,
-                120,
+                taille_couche1,
                 rank_fc[0]
             )
 
             self.fc2 = ReducedLinear(
-                120,
-                84,
+                taille_couche1,
+                taille_couche2,
                 rank_fc[1]
             )
 
             self.fc3 = ReducedLinear(
-                84,
+                taille_couche2,
                 10,
                 rank_fc[2]
             )
@@ -93,16 +93,16 @@ class LeNet5(nn.Module):
         elif optimizer == "Pytorch":
             self.fc1 = nn.Linear(
                 256,
-                120
+                taille_couche1
             )
 
             self.fc2 = nn.Linear(
-                120,
-                84
+                taille_couche1,
+                taille_couche2
             )
 
             self.fc3 = nn.Linear(
-                84,
+                taille_couche2,
                 10
             )
 

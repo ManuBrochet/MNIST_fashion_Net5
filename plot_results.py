@@ -18,10 +18,10 @@ import matplotlib.cm as cm
 
 # ── Configuration ──────────────────────────────────────────────────────────────
 
-LOSS_CSV        = "benchmark_results/loss_curves.csv"
-METRICS_CSV     = "benchmark_results/final_metrics.csv"
-DEAD_CSV        = "benchmark_results/dead_neuron_stats.csv"
-OUTPUT_DIR      = Path("benchmark_results")
+# LOSS_CSV        = "benchmark_results/loss_curves.csv"
+# METRICS_CSV     = "benchmark_results/final_metrics.csv"
+# DEAD_CSV        = "benchmark_results/dead_neuron_stats.csv"
+# OUTPUT_DIR      = Path("benchmark_results")
 MAX_CONFIGS     = 5
 FIGSIZE         = (10, 5)
 FIGSIZE_METRICS = (12, 5)
@@ -38,7 +38,7 @@ NON_PARAM_COLS = {
 
 NAN_SENTINEL = "__NA__"   # safe fill value for NaN in param cols before groupby
 
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+# OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -131,58 +131,13 @@ def plot_loss_curves(df: pd.DataFrame, fname, param_cols: list[str]):
         print(f"  Saved {fname.name}")
 
 
-# ── 2. Dead neuron stats ───────────────────────────────────────────────────────
-
-DEAD_COLS = ["fc1_mean_inactivity", "fc2_mean_inactivity", "fc3_mean_inactivity"]
-
-
-def plot_dead_neurons(df: pd.DataFrame, param_cols: list[str]):
-    df_filled = fill_params(df, param_cols)
-    varying = find_varying_params(df_filled, param_cols)
-    all_configs = list(get_config_groups(df, param_cols))
-
-    if not all_configs:
-        print("  [warning] No configs found for dead neuron stats.")
-        return
-
-    for chunk_idx, chunk in enumerate(chunk_configs(all_configs, MAX_CONFIGS)):
-        fig, axes = plt.subplots(1, len(DEAD_COLS), figsize=(14, 5), sharey=True)
-        colors = color_cycle(len(chunk))
-
-        for ax, dead_col in zip(axes, DEAD_COLS):
-            for (cfg, sub), color in zip(chunk, colors):
-                avg = sub.groupby("epoch")[dead_col].mean().reset_index()
-                label = " | ".join(
-                    f"{k}={v}" for k, v in cfg.items()
-                    if k in varying and v is not None
-                ) or "default"
-                ax.plot(avg["epoch"], avg[dead_col], label=label, color=color, linewidth=1.8)
-
-            layer = dead_col.replace("_mean_inactivity", "")
-            ax.set_title(layer)
-            ax.set_xlabel("Epoch")
-            ax.grid(True, alpha=0.3)
-
-        axes[0].set_ylabel("Mean inactivity (avg over images)")
-        handles, labels = axes[0].get_legend_handles_labels()
-        fig.legend(handles, labels, loc="upper right", fontsize=8,
-                   bbox_to_anchor=(1.0, 1.0))
-        fig.suptitle(f"Dead neuron stats – group {chunk_idx + 1}", y=1.02)
-        fig.tight_layout()
-
-        fname = OUTPUT_DIR / f"dead_neurons_group{chunk_idx + 1:02d}.png"
-        fig.savefig(fname, dpi=150, bbox_inches="tight")
-        plt.close(fig)
-        print(f"  Saved {fname.name}")
-
-
 # ── 3. Final metrics ───────────────────────────────────────────────────────────
 
-METRIC_COLS   = ["PSNR", "SSIM", "elapsed_s"]
-METRIC_LABELS = {"PSNR": "PSNR (dB)", "SSIM": "SSIM", "elapsed_s": "Time (s)"}
+METRIC_COLS   = ["test_loss", "test_acc", "elapsed_s"]
+METRIC_LABELS = {"test_loss": "Loss for test data", "test_acc": "Accuracy for test data", "elapsed_s": "Time (s)"}
 
 
-def plot_final_metrics(df: pd.DataFrame, param_cols: list[str]):
+def plot_final_metrics(df: pd.DataFrame, fname, param_cols: list[str]):
     df_filled = fill_params(df, param_cols)
     varying = find_varying_params(df_filled, param_cols)
     all_configs = list(get_config_groups(df, param_cols))
@@ -243,36 +198,6 @@ def plot_final_metrics(df: pd.DataFrame, param_cols: list[str]):
         fig.suptitle(f"Final metrics (mean ± std over images) – group {chunk_idx + 1}")
         fig.tight_layout()
 
-        fname = OUTPUT_DIR / f"final_metrics_group{chunk_idx + 1:02d}.png"
         fig.savefig(fname, dpi=150, bbox_inches="tight")
         plt.close(fig)
         print(f"  Saved {fname.name}")
-
-
-# ── Main ───────────────────────────────────────────────────────────────────────
-
-if __name__ == "__main__":
-    print("Loading data…")
-    df_loss    = load_and_clean(LOSS_CSV)
-    df_metrics = load_and_clean(METRICS_CSV)
-    df_dead    = load_and_clean(DEAD_CSV)
-
-    param_cols_loss    = detect_param_cols(df_loss)
-    param_cols_metrics = detect_param_cols(df_metrics)
-    param_cols_dead    = detect_param_cols(df_dead)
-
-    print(f"Detected param columns (loss):    {param_cols_loss}")
-    print(f"Detected param columns (metrics): {param_cols_metrics}")
-    print(f"Detected param columns (dead):    {param_cols_dead}")
-    print()
-
-    print("→ Generating loss curves…")
-    plot_loss_curves(df_loss, param_cols_loss)
-
-    print("→ Generating dead neuron plots…")
-    plot_dead_neurons(df_dead, param_cols_dead)
-
-    print("→ Generating final metric plots…")
-    plot_final_metrics(df_metrics, param_cols_metrics)
-
-    print(f"\nDone. All figures saved to {OUTPUT_DIR}/")

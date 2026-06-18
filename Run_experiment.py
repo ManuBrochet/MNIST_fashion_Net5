@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import time
 
 import building_network, utils_Riem_opti, load_data, utils_pytorch
 
@@ -43,6 +44,7 @@ def run_experiment(cfg: dict, verbose = False, save_model = False):
     dead_stats   : list[dict]   – one entry every STATS_EVERY epochs
     final_metrics: dict         – PSNR, SSIM, final_L1
     """
+    t0 = time.time()
     torch.manual_seed(42)
 
 
@@ -52,7 +54,12 @@ def run_experiment(cfg: dict, verbose = False, save_model = False):
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    model = building_network.LeNet5(rank_fc=cfg['sigma_sizes'], optimizer=cfg['optimizer_choice']).to(device)
+    model = building_network.LeNet5(
+            rank_fc=cfg['sigma_sizes'],
+            optimizer=cfg['optimizer_choice'],
+            taille_couche1=cfg["taille_couche1"],
+            taille_couche2=cfg["taille_couche2"]
+        ).to(device)
     
 
     if cfg["optimizer_choice"] in ("Reduced_network"):
@@ -114,13 +121,18 @@ def run_experiment(cfg: dict, verbose = False, save_model = False):
         device
     )
 
+    # Le temps pris par l'algo en secondes
+    elapsed = round(time.time() - t0, 1)
+
     print(f"Test loss     : {test_loss:.4f}")
     print(f"Test accuracy : {test_acc:.2f}%")
+    print(f"Elapsed time (s) : {elapsed}")
 
 
     final_metrics = {
         "test_loss":    test_loss,
         "test_acc":     test_acc,
+        "elapsed_s" :   elapsed,
     }
 
     if save_model:

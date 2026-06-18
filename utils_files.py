@@ -41,17 +41,7 @@ def open_csv(path: Path, fieldnames: list):
     return fh, writer
 
 
-def save_loss_curve(cfg, loss_curve):
-    # parser = argparse.ArgumentParser(description="MLP image-compressor benchmark")
-    # parser.add_argument("--output_dir",  default="./benchmark_results",
-    #                     help="Where to write CSV files")
-    # parser.add_argument("--extensions",  default="jpg,jpeg,png,bmp",
-    #                     help="Comma-separated list of image extensions to include")
-    # args = parser.parse_args()
-
-    # output_dir = Path(args.output_dir)
-
-
+def create_output_dir(cfg):
     run_id = make_run_id(cfg)
     meta   = build_meta_row(run_id, cfg)
 
@@ -63,6 +53,14 @@ def save_loss_curve(cfg, loss_curve):
 
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    return output_dir, meta
+
+
+def save_loss_curve(cfg, loss_curve):
+
+    output_dir, meta = create_output_dir(cfg)
+
     loss_csv   = output_dir / "loss_curves.csv"
 
     loss_fields   = ["run_id", "optimizer_choice", "LR", "LR_UV", "use_momentum", "beta_momentum", 
@@ -74,5 +72,23 @@ def save_loss_curve(cfg, loss_curve):
     for epoch_loss in loss_curve:
         loss_writer.writerow({**meta, "epoch": epoch_loss[0], "loss": epoch_loss[1]})
     loss_fh.flush()
+
+    return loss_csv, output_dir
+
+
+def save_final_metrics(cfg, final_metrics):
+
+    output_dir, meta = create_output_dir(cfg)
+
+    loss_csv   = output_dir / "final_metrics.csv"
+
+    loss_fields   = ["run_id", "optimizer_choice", "LR", "LR_UV", "use_momentum", "beta_momentum", 
+                    "LR_UV", "sigma_size_1", "sigma_size_2", "sigma_size_3", "EPOCHS", "test_loss", "test_acc", "elapsed_s"]
+
+    metrics_fh,   metrics_writer   = open_csv(loss_csv,   loss_fields)
+
+    # ── write final_metrics.csv ─────────────────────────────
+    metrics_writer.writerow({**meta, "test_loss": final_metrics["test_loss"], "test_acc": final_metrics["test_acc"], "elapsed_s": final_metrics["elapsed_s"]})
+    metrics_fh.flush()
 
     return loss_csv, output_dir

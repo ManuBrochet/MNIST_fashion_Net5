@@ -48,12 +48,13 @@ class ReducedLinear(nn.Module):
 
 class LeNet5(nn.Module):
 
-    def __init__(self, rank_fc, optimizer, taille_couche1 = 120, taille_couche2 = 84):
+    def __init__(self, rank_fc, optimizer, taille_couche1 = 120, taille_couche2 = 84,
+        taille_couche1_reduced = 120, taille_couche2_reduced = 84):
 
         super().__init__()
 
         self.conv1 = nn.Conv2d(
-            in_channels=1,
+            in_channels=3,
             out_channels=6,
             kernel_size=5
         )
@@ -69,30 +70,30 @@ class LeNet5(nn.Module):
             stride=2
         )
 
-        # 16 x 4 x 4 = 256
+        # 16 x 5 x 5 = 256
 
         if optimizer == "Reduced_network":
             self.fc1 = ReducedLinear(
-                256,
-                taille_couche1,
+                400,
+                taille_couche1_reduced,
                 rank_fc[0]
             )
 
             self.fc2 = ReducedLinear(
-                taille_couche1,
-                taille_couche2,
+                taille_couche1_reduced,
+                taille_couche2_reduced,
                 rank_fc[1]
             )
 
             self.fc3 = ReducedLinear(
-                taille_couche2,
-                10,
+                taille_couche2_reduced,
+                100,
                 rank_fc[2]
             )
 
-        elif optimizer == "Pytorch":
+        elif optimizer in ("Pytorch", "no_constraints"):
             self.fc1 = nn.Linear(
-                256,
+                400,
                 taille_couche1
             )
 
@@ -103,7 +104,7 @@ class LeNet5(nn.Module):
 
             self.fc3 = nn.Linear(
                 taille_couche2,
-                10
+                100
             )
 
     def forward(self, x):
@@ -131,7 +132,8 @@ class LeNet5(nn.Module):
 # ====================================================================================
 
 def reduced_network_optimizer(
-    model, learning_rate, LR_UV, beta_momentum, use_momentum = True, first_iteration = True
+    model, learning_rate, LR_UV, beta_momentum, use_momentum, first_iteration,
+    adaptative_step, beta2
     ):
 
     with torch.no_grad():
@@ -150,6 +152,17 @@ def reduced_network_optimizer(
                 momentum = param.momentum_buffer
             else: momentum = None
 
+            if adaptative_step:
+                if not hasattr(param, "v_buffer"):
+                    param.v_buffer = torch.zeros_like(param)
+                v_buffer = param.v_buffer
+                if not hasattr(param, "v_tilde_buffer"):
+                    param.v_tilde_buffer = torch.zeros_like(param)
+                v_tilde_buffer = param.v_tilde_buffer
+            else: 
+                v_buffer = None
+                v_tilde_buffer = None
+
             # Only Stiefel optimize Q
             if "U" in name or "V" in name:
 
@@ -160,8 +173,9 @@ def reduced_network_optimizer(
 
                 # Stiefel update
                 if use_momentum:
-                    X_new, momentum = utils_Riem_opti.stiefel_step_torch_momentum(
-                        X, X_perp, G, momentum, LR_UV, beta_momentum, first_iteration
+                    X_new, momentum, v_buffer, v_tilde_buffer = utils_Riem_opti.stiefel_step_torch_momentum(
+                        X, X_perp, G, momentum, LR_UV, beta_momentum, first_iteration,
+                        adaptative_step, beta2, v_buffer, v_tilde_buffer
                         )
                 else:
                     X_new = utils_Riem_opti.stiefel_step_torch(X, X_perp, G, LR_UV)
@@ -173,9 +187,38 @@ def reduced_network_optimizer(
                 if use_momentum:
                     param.momentum_buffer.copy_(momentum)
 
+                if adaptative_step:
+                    param.v_buffer.copy_(v_buffer)
+                    param.v_tilde_buffer.copy_(v_tilde_buffer)
+
             else :
                 utils_math.opti_euclidienn(
                     param=param, learning_rate=learning_rate, use_momentum=use_momentum,
                     momentum=momentum, beta_momentum=beta_momentum
                     )
+
+def basic_optimizer(
+    model, learning_rate, beta_momentum, use_momentum = True, first_iteration = True
+    ):
+
+    with torch.no_grad():
+        for name, param in model.named_parameters():
+
+            # Si pas de gradients, pas d'optimisation
+            if param.grad is None:
+                continue
+
+            if use_momentum:
+                # ----------------------------------------
+                # 1. Momentum buffer (créé si inexistant)
+                # ----------------------------------------
+                if not hasattr(param, "momentum_buffer"):
+                    param.momentum_buffer = torch.zeros_like(param)
+                momentum = param.momentum_buffer
+            else: momentum = None
+
+            utils_math.opti_euclidienn(
+                param=param, learning_rate=learning_rate, use_momentum=use_momentum,
+                momentum=momentum, beta_momentum=beta_momentum
+                )
                 

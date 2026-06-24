@@ -31,3 +31,14 @@ Comparaison avec Muon
 Etat de l'art
 Génération des résultats 
 12 pages + 1 de biblio
+
+
+Recoder optimizer PyTorch
+Chercher application plus intéressante
+Tester méthode W = LR.T
+Regarder le pas adaptatif pour l'opti riemannienne
+
+
+Optimizer SGD
+
+Avec CIFAR 10 : on devrait avoir 65% avec LeNet5

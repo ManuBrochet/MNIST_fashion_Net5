@@ -20,15 +20,19 @@ def build_meta_row(run_id: str, cfg: dict) -> dict:
     """Flat dict of all config fields — goes into every CSV row as metadata."""
     return {
         "run_id":           run_id,
-        "optimizer_choice": cfg["optimizer_choice"],
-        "LR":               cfg["LR"],
-        "EPOCHS":           cfg["EPOCHS"],
-        "use_momentum":     cfg["use_momentum"],
-        "beta_momentum":    cfg["beta_momentum"],
-        "LR_UV":            cfg["LR_UV"],
-        "sigma_size_1":       cfg["sigma_sizes"][0],
-        "sigma_size_2":       cfg["sigma_sizes"][1],
-        "sigma_size_3":       cfg["sigma_sizes"][2],
+        "optimizer_choice":     cfg["optimizer_choice"],
+        "LR":                   cfg["LR"],
+        "EPOCHS":               cfg["EPOCHS"],
+        "use_momentum":         cfg["use_momentum"],
+        "beta_momentum":        cfg["beta_momentum"],
+        "LR_UV":                cfg["LR_UV"],
+        "sigma_size_1":         cfg["sigma_sizes"][0],
+        "sigma_size_2":         cfg["sigma_sizes"][1],
+        "sigma_size_3":         cfg["sigma_sizes"][2],
+        "taille_couche1":       cfg["taille_couches"][0],
+        "taille_couche1":       cfg["taille_couches"][1],
+        "adaptive_step":        cfg["adaptive_step"], 
+        "beta2":                cfg["beta2"], 
     }
 
 def open_csv(path: Path, fieldnames: list):
@@ -46,10 +50,12 @@ def create_output_dir(cfg):
     meta   = build_meta_row(run_id, cfg)
 
 
-    if cfg['use_momentum']:
-        output_dir = f"results_main/{cfg['optimizer_choice']}/momentum_True/beta_momentum_{cfg['beta_momentum']}"
-    else :
-        output_dir = f"results_main/{cfg['optimizer_choice']}/momentum_False"
+    # if cfg['use_momentum']:
+    #     output_dir = f"results_main/{cfg['optimizer_choice']}/momentum_True/beta_momentum_{cfg['beta_momentum']}"
+    # else :
+    #     output_dir = f"results_main/{cfg['optimizer_choice']}/momentum_False"
+
+    output_dir = "benchmark_results"
 
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -64,7 +70,7 @@ def save_loss_curve(cfg, loss_curve):
     loss_csv   = output_dir / "loss_curves.csv"
 
     loss_fields   = ["run_id", "optimizer_choice", "LR", "LR_UV", "use_momentum", "beta_momentum", 
-                    "LR_UV", "sigma_size_1", "sigma_size_2", "sigma_size_3", "EPOCHS", "epoch", "loss"]
+                    "LR_UV", "sigma_size_1", "sigma_size_2", "sigma_size_3", "taille_couche1", "taille_couche2", "adaptive_step", "beta2", "EPOCHS", "epoch", "loss"]
 
     loss_fh,   loss_writer   = open_csv(loss_csv,   loss_fields)
 
@@ -83,7 +89,7 @@ def save_final_metrics(cfg, final_metrics):
     loss_csv   = output_dir / "final_metrics.csv"
 
     loss_fields   = ["run_id", "optimizer_choice", "LR", "LR_UV", "use_momentum", "beta_momentum", 
-                    "LR_UV", "sigma_size_1", "sigma_size_2", "sigma_size_3", "EPOCHS", "test_loss", "test_acc", "elapsed_s"]
+                    "LR_UV", "sigma_size_1", "sigma_size_2", "sigma_size_3", "taille_couche1", "taille_couche2", "adaptive_step", "beta2", "EPOCHS", "test_loss", "test_acc", "elapsed_s"]
 
     metrics_fh,   metrics_writer   = open_csv(loss_csv,   loss_fields)
 

@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from torch.nn.modules import adaptive
+
 import Run_experiment, utils_files, plot_results
 
 if __name__ == "__main__":
@@ -10,30 +12,35 @@ if __name__ == "__main__":
 
         # ML param
         EPOCHS          = 151,
-        LR              = 0.001,
-        # Can be "Pytorch", "Reduced_network"
-        optimizer_choice = "Reduced_network",
+        LR              = 0.05,
+        # Can be "Pytorch", "Reduced_network", "no_constraints"
+        optimizer_choice = "Pytorch",
         
         # Momentum param
-        use_momentum    = True,
+        use_momentum    = False,
         beta_momentum   = 0.9,
 
         # Reduced network parameters
-        # sigma_sizes = [40, 24, 4],  # 50% de params en moins
-        sigma_sizes = [20, 12, 4],  # 75% de params en moins
+        sigma_sizes = [40, 24, 4],  # 50% de params en moins
+        # sigma_sizes = [20, 12, 4],  # 75% de params en moins
         LR_UV = 0.1,
 
         # Others
         STATS_EVERY     = 1,
 
-        # # 50% params en moins
-        # taille_couche1 = 69,    # 120 par défaut
-        # taille_couche2 = 40,    # 84 par défaut
-
+        # 0% params en moins
+        # taille_couches = [120, 84]
         # 50% params en moins
-        taille_couche1 = 38,    # 120 par défaut
-        taille_couche2 = 14,    # 84 par défaut
+        taille_couches = [69, 40],
+        # 75% params en moins
+        # taille_couches = [38, 14]
+
+        # adaptive_step params
+        adaptive_step = True,
+        beta2 = 0.9
     )
+
+    print("L'optimizer utilisé est : ", cfg["optimizer_choice"])
 
     loss_curve, final_metrics = Run_experiment.run_experiment(cfg=cfg, verbose=True, save_model=False)
 

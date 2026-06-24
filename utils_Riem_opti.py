@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 
 # ====================================================================================
 # Optimizer steps for Riemannian optimization
@@ -40,7 +41,13 @@ def stiefel_step_torch(X, X_perp, G_euc, step):
 
     return X_new
 
-def stiefel_step_torch_momentum(X, X_perp, G_euc, momentum, step, beta_momentum, first_iteration):
+def riem_norm(A):
+    return torch.trace(A.T@A)
+
+def stiefel_step_torch_momentum(
+        X, X_perp, G_euc, momentum, step, beta_momentum, 
+        first_iteration, adaptative_step, beta2,
+        v, v_tilde):
 
     # # ------------------
     # XtG = X.T @ G_euc
@@ -54,13 +61,25 @@ def stiefel_step_torch_momentum(X, X_perp, G_euc, momentum, step, beta_momentum,
     A = X.T @ G - G.T @ X           # (p,p)
     B = X_perp.T @ G                # (n-p,p)
 
+
+
+
     if first_iteration:
         A_final = A
         B_final = B
+
+        v = 0
+        v_tilde = 0
     
     else:
-        # grad_riem = X @ A + X_perp @ B
         # print("La shape du momentum : ", momentum.shape)
+
+        if adaptative_step:
+            grad_riem = X @ A + X_perp @ B
+
+            v = beta2 * v + (1 - beta2) * riem_norm(grad_riem)
+
+            v_tilde = torch.max(v, v_tilde)
 
         momentum_transported = momentum - X @ (X.T @ momentum + momentum.T @ X) / 2
 
@@ -84,7 +103,11 @@ def stiefel_step_torch_momentum(X, X_perp, G_euc, momentum, step, beta_momentum,
     K[p:, :p] = B_final
 
     # Exponential
-    E = torch.matrix_exp(step * K)
+    if adaptative_step:
+        E = torch.matrix_exp((step / np.sqrt(v_tilde)) * K)
+
+    else:
+        E = torch.matrix_exp(step * K)
 
     # Extract blocks : we take to :p because of the I_n*p matrix
     E11 = E[:p, :p]
@@ -93,7 +116,7 @@ def stiefel_step_torch_momentum(X, X_perp, G_euc, momentum, step, beta_momentum,
     # Update WITHOUT forming Q
     X_new = X @ E11 + X_perp @ E21
 
-    return X_new, momentum
+    return X_new, momentum, v, v_tilde
 
 
 # ====================================================================================

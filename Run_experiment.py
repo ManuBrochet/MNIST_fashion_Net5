@@ -4,29 +4,26 @@ import time
 
 import building_network, utils_Riem_opti, load_data, utils_pytorch
 
-
-
 # ─────────────────────────────────────────────────────────────────────────────
 # General helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def apply_optimizer(model, cfg, pt_optimizer, first_iteration):
+def apply_optimizer(model, cfg, pt_optimizer, first_iteration, adaptative_step, beta2):
     
     if cfg["optimizer_choice"] == "Pytorch":
         pt_optimizer.step()
     elif cfg["optimizer_choice"] == "Reduced_network":
         building_network.reduced_network_optimizer(
             model, cfg["LR"], cfg["LR_UV"], 
-            cfg["beta_momentum"], cfg["use_momentum"], first_iteration
+            cfg["beta_momentum"], cfg["use_momentum"], first_iteration,
+            adaptative_step, beta2
             )
-
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Metrics
-# ─────────────────────────────────────────────────────────────────────────────
-
+    elif cfg["optimizer_choice"] == "no_constraints":
+        building_network.basic_optimizer(
+            model, cfg["LR"], cfg["beta_momentum"], 
+            cfg["use_momentum"], first_iteration
+            )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -49,7 +46,7 @@ def run_experiment(cfg: dict, verbose = False, save_model = False):
 
 
     # ── data ──────────────────────────────────────────────────────────────────
-    train_loader, test_loader = load_data.load_MNIST_fashion(cfg["BATCH_SIZE"])
+    train_loader, test_loader = load_data.load_CIFAR_100(cfg["BATCH_SIZE"])
 
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -57,8 +54,8 @@ def run_experiment(cfg: dict, verbose = False, save_model = False):
     model = building_network.LeNet5(
             rank_fc=cfg['sigma_sizes'],
             optimizer=cfg['optimizer_choice'],
-            taille_couche1=cfg["taille_couche1"],
-            taille_couche2=cfg["taille_couche2"]
+            taille_couche1=cfg["taille_couches"][0],
+            taille_couche2=cfg["taille_couches"][1]
         ).to(device)
     
 
@@ -104,7 +101,7 @@ def run_experiment(cfg: dict, verbose = False, save_model = False):
             loss.backward()
 
             # weight update
-            apply_optimizer(model, cfg, pt_optimizer, epoch==0)
+            apply_optimizer(model, cfg, pt_optimizer, epoch==0, cfg["adaptive_step"], cfg["beta2"])
 
 
         if verbose and epoch % 10 == 0:

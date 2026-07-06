@@ -11,7 +11,7 @@ if __name__ == "__main__":
         BATCH_SIZE           = 128,     # Can be 32, 64 or 128
 
         # ML param
-        EPOCHS          = 4700,
+        EPOCHS          = 2,
         LR              = 0.05,
         # Can be "Pytorch", "Reduced_network", "no_constraints"
         optimizer_choice = "Reduced_network",
@@ -44,7 +44,7 @@ if __name__ == "__main__":
 
     print("L'optimizer utilisé est : ", cfg["optimizer_choice"])
 
-    loss_curve, final_metrics = Run_experiment.run_experiment(cfg=cfg, verbose=True, save_model=False)
+    loss_curve, final_metrics = Run_experiment.run_experiment(cfg=cfg, verbose=True, save_model=True)
 
 
     path_csv, path_dir = utils_files.save_loss_curve(cfg, loss_curve, benchmark=False)

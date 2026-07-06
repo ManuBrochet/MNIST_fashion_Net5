@@ -1,3 +1,4 @@
+import os
 import torch
 import torch.nn as nn
 import time
@@ -31,9 +32,20 @@ def apply_optimizer(model, cfg, pt_optimizer, first_iteration, adaptative_step, 
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def run_experiment(cfg: dict, verbose = False, save_model = False):
+def run_experiment(cfg: dict, verbose = False, save_model = False,
+                    checkpoint_dir = "checkpoints", run_name = None):
     """
     Train the model for one (image, config) combination.
+
+    Parameters
+    ----------
+    save_model     : si True, le modèle entraîné est sauvegardé sur disque
+                     une fois l'entraînement terminé (voir utils_pytorch.save_mlp).
+    checkpoint_dir : dossier de destination des checkpoints.
+    run_name       : nom du fichier de checkpoint (sans extension). Si None,
+                     un nom est généré automatiquement à partir du dataset et
+                     de l'optimizer_choice (utile pour ne pas écraser un
+                     modèle par un autre quand on compare plusieurs runs).
 
     Returns
     -------
@@ -142,15 +154,31 @@ def run_experiment(cfg: dict, verbose = False, save_model = False):
     }
 
     if save_model:
+        # Nom de fichier auto-généré si non fourni, pour pouvoir sauvegarder
+        # plusieurs modèles (différents datasets / optimizers) sans les
+        # écraser les uns les autres.
+        if run_name is None:
+            if cfg['optimizer_choice'] in ("Pytorch", "no_constraints"):
+                run_name = f"{cfg.get('dataset', 'MNIST_fashion')}_{cfg['optimizer_choice']}_layerSize_{cfg["taille_couches"][0]}_{cfg["taille_couches"][1]}"
+            else :
+                run_name = f"{cfg.get('dataset', 'MNIST_fashion')}_{cfg['optimizer_choice']}_momentum_{cfg["use_momentum"]}_adaptStep_{cfg["adaptive_step"]}_SigSize_{cfg["sigma_sizes"][0]}_{cfg["sigma_sizes"][1]}_{cfg["sigma_sizes"][2]}"
+
+        filepath = os.path.join(checkpoint_dir, f"{run_name}.pth")
+
         # Sauvegarde finale avec toutes les métadonnées utiles
         utils_pytorch.save_mlp(
             model,
-            filepath="checkpoints/mlp_final.pth",
+            filepath=filepath,
+            dataset_sizes=dataset_sizes,
+            cfg=cfg,
             meta={
                 "loss":       final_metrics["test_loss"],
+                "test_acc":   final_metrics["test_acc"],
                 "epoch":      cfg["EPOCHS"],
                 "notes":      "Réseau final",
             },
         )
+
+        final_metrics["checkpoint_path"] = filepath
 
     return loss_curve, final_metrics

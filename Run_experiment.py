@@ -46,16 +46,25 @@ def run_experiment(cfg: dict, verbose = False, save_model = False):
 
 
     # ── data ──────────────────────────────────────────────────────────────────
-    train_loader, test_loader = load_data.load_CIFAR_100(cfg["BATCH_SIZE"])
-
+    if cfg["dataset"] == "CIFAR10":
+        dataset_sizes = [3, 400, 10]
+        train_loader, test_loader = load_data.load_CIFAR_10(cfg["BATCH_SIZE"])
+    elif cfg["dataset"] == "CIFAR100":
+        dataset_sizes = [3, 400, 100]
+        train_loader, test_loader = load_data.load_CIFAR_100(cfg["BATCH_SIZE"])
+    else :
+        dataset_sizes = [1, 256, 10]
+        train_loader, test_loader = load_data.load_MNIST_fashion(cfg["BATCH_SIZE"])
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
 
     model = building_network.LeNet5(
             rank_fc=cfg['sigma_sizes'],
             optimizer=cfg['optimizer_choice'],
             taille_couche1=cfg["taille_couches"][0],
-            taille_couche2=cfg["taille_couches"][1]
+            taille_couche2=cfg["taille_couches"][1],
+            dataset_sizes=dataset_sizes,
         ).to(device)
     
 
@@ -104,7 +113,7 @@ def run_experiment(cfg: dict, verbose = False, save_model = False):
             apply_optimizer(model, cfg, pt_optimizer, epoch==0, cfg["adaptive_step"], cfg["beta2"])
 
 
-        if verbose and epoch % 10 == 0:
+        if verbose and epoch % 100 == 0:
             print(f"Epoch {epoch:4d} | Loss: {loss.item():.6f}")
 
     if verbose:

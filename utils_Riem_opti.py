@@ -61,15 +61,12 @@ def stiefel_step_torch_momentum(
     A = X.T @ G - G.T @ X           # (p,p)
     B = X_perp.T @ G                # (n-p,p)
 
-
-
-
     if first_iteration:
         A_final = A
         B_final = B
 
-        v = 0
-        v_tilde = 0
+        v = 1
+        v_tilde = 1
     
     else:
         # print("La shape du momentum : ", momentum.shape)
@@ -79,7 +76,7 @@ def stiefel_step_torch_momentum(
 
             v = beta2 * v + (1 - beta2) * riem_norm(grad_riem)
 
-            v_tilde = torch.max(v, v_tilde)
+            v_tilde = max(v, v_tilde)
 
         momentum_transported = momentum - X @ (X.T @ momentum + momentum.T @ X) / 2
 

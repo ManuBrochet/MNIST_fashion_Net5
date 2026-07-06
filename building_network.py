@@ -49,12 +49,12 @@ class ReducedLinear(nn.Module):
 class LeNet5(nn.Module):
 
     def __init__(self, rank_fc, optimizer, taille_couche1 = 120, taille_couche2 = 84,
-        taille_couche1_reduced = 120, taille_couche2_reduced = 84):
+        taille_couche1_reduced = 120, taille_couche2_reduced = 84, dataset_sizes = [3, 400, 10]):
 
         super().__init__()
 
         self.conv1 = nn.Conv2d(
-            in_channels=3,
+            in_channels=dataset_sizes[0],
             out_channels=6,
             kernel_size=5
         )
@@ -74,7 +74,7 @@ class LeNet5(nn.Module):
 
         if optimizer == "Reduced_network":
             self.fc1 = ReducedLinear(
-                400,
+                dataset_sizes[1],
                 taille_couche1_reduced,
                 rank_fc[0]
             )
@@ -87,13 +87,13 @@ class LeNet5(nn.Module):
 
             self.fc3 = ReducedLinear(
                 taille_couche2_reduced,
-                100,
+                dataset_sizes[2],
                 rank_fc[2]
             )
 
         elif optimizer in ("Pytorch", "no_constraints"):
             self.fc1 = nn.Linear(
-                400,
+                dataset_sizes[1],
                 taille_couche1
             )
 
@@ -104,7 +104,7 @@ class LeNet5(nn.Module):
 
             self.fc3 = nn.Linear(
                 taille_couche2,
-                100
+                dataset_sizes[2]
             )
 
     def forward(self, x):
@@ -154,10 +154,10 @@ def reduced_network_optimizer(
 
             if adaptative_step:
                 if not hasattr(param, "v_buffer"):
-                    param.v_buffer = torch.zeros_like(param)
+                    param.v_buffer = 0.
                 v_buffer = param.v_buffer
                 if not hasattr(param, "v_tilde_buffer"):
-                    param.v_tilde_buffer = torch.zeros_like(param)
+                    param.v_tilde_buffer = 0.
                 v_tilde_buffer = param.v_tilde_buffer
             else: 
                 v_buffer = None
@@ -188,8 +188,8 @@ def reduced_network_optimizer(
                     param.momentum_buffer.copy_(momentum)
 
                 if adaptative_step:
-                    param.v_buffer.copy_(v_buffer)
-                    param.v_tilde_buffer.copy_(v_tilde_buffer)
+                    param.v_buffer = v_buffer
+                    param.v_tilde_buffer = v_tilde_buffer
 
             else :
                 utils_math.opti_euclidienn(

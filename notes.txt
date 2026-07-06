@@ -42,3 +42,12 @@ Regarder le pas adaptatif pour l'opti riemannienne
 Optimizer SGD
 
 Avec CIFAR 10 : on devrait avoir 65% avec LeNet5
+
+Avec adaptive step : on peut comparer à Adam
+
+
+Essayer avec beaucoup moins de paramètres
+Contraintes de rang peut aider à controler la cst de Lip (pour attaques adversariales)
+attaque PDG -> la plus simple
+
+gradcam : quels pixels contribuent le plus à la classe

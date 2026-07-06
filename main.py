@@ -11,13 +11,13 @@ if __name__ == "__main__":
         BATCH_SIZE           = 128,     # Can be 32, 64 or 128
 
         # ML param
-        EPOCHS          = 151,
+        EPOCHS          = 4700,
         LR              = 0.05,
         # Can be "Pytorch", "Reduced_network", "no_constraints"
-        optimizer_choice = "Pytorch",
+        optimizer_choice = "Reduced_network",
         
         # Momentum param
-        use_momentum    = False,
+        use_momentum    = True,
         beta_momentum   = 0.9,
 
         # Reduced network parameters
@@ -26,18 +26,20 @@ if __name__ == "__main__":
         LR_UV = 0.1,
 
         # Others
-        STATS_EVERY     = 1,
+        STATS_EVERY     = 10,
 
         # 0% params en moins
-        # taille_couches = [120, 84]
+        taille_couches = [120, 84],
         # 50% params en moins
-        taille_couches = [69, 40],
+        # taille_couches = [69, 40],
         # 75% params en moins
-        # taille_couches = [38, 14]
+        # taille_couches = [38, 14],
 
         # adaptive_step params
         adaptive_step = True,
-        beta2 = 0.9
+        beta2 = 0.9,
+
+        dataset = "CIFAR10",  # "CIFAR10", "CIFAR100", "MNIST_fashion"
     )
 
     print("L'optimizer utilisé est : ", cfg["optimizer_choice"])
@@ -45,7 +47,7 @@ if __name__ == "__main__":
     loss_curve, final_metrics = Run_experiment.run_experiment(cfg=cfg, verbose=True, save_model=False)
 
 
-    path_csv, path_dir = utils_files.save_loss_curve(cfg, loss_curve)
+    path_csv, path_dir = utils_files.save_loss_curve(cfg, loss_curve, benchmark=False)
     df_loss    = plot_results.load_and_clean(path_csv)
     param_cols_loss = plot_results.detect_param_cols(df_loss)
     print("→ Generating loss curves…")
@@ -53,7 +55,7 @@ if __name__ == "__main__":
 
 
     # Final metrics
-    path_csv, path_dir = utils_files.save_final_metrics(cfg, final_metrics)
+    path_csv, path_dir = utils_files.save_final_metrics(cfg, final_metrics, benchmark=False)
     df_loss    = plot_results.load_and_clean(path_csv)
     param_cols_loss = plot_results.detect_param_cols(df_loss)
     print("→ Generating metrics curves…")

@@ -40,6 +40,20 @@ NAN_SENTINEL = "__NA__"   # safe fill value for NaN in param cols before groupby
 
 # OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
+METHOD_ORDER = [
+    ("SGD", False),
+    ("Adam", False),
+    ("Reduced_network", False),
+    ("Reduced_network", True),
+]
+
+METHOD_COLORS = {
+    ("SGD", False): "#1f77b4",          # bleu
+    ("Adam", False): "#ff7f0e",         # orange
+    ("Reduced_network", False): "#2ca02c",  # vert
+    ("Reduced_network", True): "#d62728",   # rouge
+}
+
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 def load_and_clean(path: str) -> pd.DataFrame:
@@ -91,8 +105,52 @@ def chunk_configs(configs: list, n: int):
         yield configs[i: i + n]
 
 
-def color_cycle(n: int):
-    return [cm.tab10(i % 10) for i in range(n)]
+def sort_configs(all_configs):
+    """
+    Trie les configurations selon un ordre fixe des méthodes.
+
+    all_configs est une liste de tuples (cfg, sub_df)
+    renvoyée par get_config_groups().
+    """
+
+    order_dict = {
+        method: idx
+        for idx, method in enumerate(METHOD_ORDER)
+    }
+
+    def sort_key(item):
+        cfg, _ = item
+
+        optimizer = cfg.get("optimizer_choice")
+
+        # adaptive_step n'a de sens que pour Reduced_network
+        adaptive = (
+            bool(cfg.get("adaptive_step", False))
+            if optimizer == "Reduced_network"
+            else False
+        )
+
+        # Ordre principal : la méthode
+        method_rank = order_dict.get(
+            (optimizer, adaptive),
+            len(order_dict)
+        )
+
+        # Ordre secondaire : les autres paramètres
+        # (pour garder un ordre déterministe)
+        other_params = tuple(
+            str(cfg[k])
+            for k in sorted(cfg)
+            if k not in {"optimizer_choice", "adaptive_step"}
+        )
+
+        return (method_rank, other_params)
+
+    return sorted(all_configs, key=sort_key)
+
+
+# def color_cycle(n: int):
+#     return [cm.tab10(i % 10) for i in range(n)]
 
 
 # ── 1. Loss curves ─────────────────────────────────────────────────────────────
@@ -106,17 +164,23 @@ def plot_loss_curves(df: pd.DataFrame, fname, param_cols: list[str]):
         print("  [warning] No configs found for loss curves.")
         return
 
+    all_configs = sort_configs(
+        all_configs
+    )
+
     for chunk_idx, chunk in enumerate(chunk_configs(all_configs, MAX_CONFIGS)):
         fig, ax = plt.subplots(figsize=FIGSIZE)
-        colors = color_cycle(len(chunk))
+        
 
-        for (cfg, sub), color in zip(chunk, colors):
+        for cfg, sub in chunk :
             avg = sub.groupby("epoch")["loss"].mean().reset_index()
             label = " | ".join(
                 f"{k}={v}" for k, v in cfg.items()
                 if k in varying and v is not None
             ) or "default"
-            ax.plot(avg["epoch"], avg["loss"], label=label, color=color, linewidth=1.8)
+            ax.plot(avg["epoch"], avg["loss"], label=label, 
+                color=METHOD_COLORS[(cfg["optimizer_choice"],cfg.get("adaptive_step", False))], 
+                linewidth=1.8)
 
         ax.set_xlabel("Epoch")
         ax.set_ylabel("Loss (mean over images)")
@@ -146,9 +210,16 @@ def plot_final_metrics(df: pd.DataFrame, fname, param_cols: list[str]):
         print("  [warning] No configs found for final metrics.")
         return
 
+    all_configs = sort_configs(
+        all_configs
+    )
+
     for chunk_idx, chunk in enumerate(chunk_configs(all_configs, MAX_CONFIGS)):
         fig, axes = plt.subplots(1, len(METRIC_COLS), figsize=FIGSIZE_METRICS)
-        colors = color_cycle(len(chunk))
+        # colors = color_cycle(len(chunk))
+        colors = []
+        for opt in METHOD_COLORS:
+            colors.append(METHOD_COLORS[opt])
 
         config_labels = []
         for cfg, _ in chunk:

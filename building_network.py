@@ -91,7 +91,7 @@ class LeNet5(nn.Module):
                 rank_fc[2]
             )
 
-        elif optimizer in ("Pytorch", "no_constraints"):
+        elif optimizer in ("Adam", "SGD"):
             self.fc1 = nn.Linear(
                 dataset_sizes[1],
                 taille_couche1

@@ -11,9 +11,9 @@ if __name__ == "__main__":
         BATCH_SIZE           = 128,     # Can be 32, 64 or 128
 
         # ML param
-        EPOCHS          = 2,
+        EPOCHS          = 4700,
         LR              = 0.05,
-        # Can be "Pytorch", "Reduced_network", "no_constraints"
+        # Can be "Adam", "Reduced_network", "SGD"
         optimizer_choice = "Reduced_network",
         
         # Momentum param
@@ -26,7 +26,7 @@ if __name__ == "__main__":
         LR_UV = 0.1,
 
         # Others
-        STATS_EVERY     = 10,
+        STATS_EVERY     = 1,
 
         # 0% params en moins
         taille_couches = [120, 84],
@@ -44,14 +44,22 @@ if __name__ == "__main__":
 
     print("L'optimizer utilisé est : ", cfg["optimizer_choice"])
 
-    loss_curve, final_metrics = Run_experiment.run_experiment(cfg=cfg, verbose=True, save_model=True)
+    loss_curve, val_curve, final_metrics = Run_experiment.run_experiment(cfg=cfg, verbose=True, save_model=True)
 
+    print("loss : ", len(loss_curve))
+    print("val : ", len(val_curve))
 
-    path_csv, path_dir = utils_files.save_loss_curve(cfg, loss_curve, benchmark=False)
+    path_csv, path_dir = utils_files.save_loss_curve(cfg, loss_curve, benchmark=False, loss_val=True)
     df_loss    = plot_results.load_and_clean(path_csv)
     param_cols_loss = plot_results.detect_param_cols(df_loss)
     print("→ Generating loss curves…")
     plot_results.plot_loss_curves(df_loss, path_dir / "loss_curve.png", param_cols_loss)
+
+    path_csv, path_dir = utils_files.save_loss_curve(cfg, val_curve, benchmark=False, loss_val=False)
+    df_loss    = plot_results.load_and_clean(path_csv)
+    param_cols_loss = plot_results.detect_param_cols(df_loss)
+    print("→ Generating loss curves…")
+    plot_results.plot_loss_curves(df_loss, path_dir / "val_curve.png", param_cols_loss)
 
 
     # Final metrics

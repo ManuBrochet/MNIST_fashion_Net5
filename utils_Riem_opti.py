@@ -44,6 +44,10 @@ def stiefel_step_torch(X, X_perp, G_euc, step):
 def riem_norm(A):
     return torch.trace(A.T@A)
 
+def weird_riem_norm(A, B):
+    return 0.5 * torch.trace(A.T@A) + torch.trace(B.T@B)
+
+
 def stiefel_step_torch_momentum(
         X, X_perp, G_euc, momentum, step, beta_momentum, 
         first_iteration, adaptative_step, beta2,
@@ -72,9 +76,10 @@ def stiefel_step_torch_momentum(
         # print("La shape du momentum : ", momentum.shape)
 
         if adaptative_step:
-            grad_riem = X @ A + X_perp @ B
+            # grad_riem = X @ A + X_perp @ B
 
-            v = beta2 * v + (1 - beta2) * riem_norm(grad_riem)
+            # v = beta2 * v + (1 - beta2) * riem_norm(grad_riem)
+            v = beta2 * v + (1 - beta2) * weird_riem_norm(A, B)
 
             v_tilde = max(v, v_tilde)
 

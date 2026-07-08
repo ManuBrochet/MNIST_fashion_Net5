@@ -38,7 +38,6 @@ def evaluate(model, dataloader, criterion, device):
     return avg_loss, accuracy
 
 
-
 # ---------------------------------------------------------------------------
 # Fonctions internes
 # ---------------------------------------------------------------------------
@@ -47,9 +46,9 @@ def _mode_label(cfg: dict) -> str:
     opt = cfg.get("optimizer_choice")
     if opt == "Reduced_network":
         return f"ReducedLinear (rank_fc={cfg.get('rank_fc', '')})"
-    if opt == "no_constraints":
-        return "Linear standard (no_constraints)"
-    return "Linear standard (Pytorch/Adam)"
+    if opt == "SGD":
+        return "Linear standard (SGD)"
+    return "Linear standard (Adam)"
 
 
 def _print_summary(meta: dict) -> None:
@@ -133,7 +132,7 @@ def save_mlp(model: building_network.LeNet5,
 def load_lenet5(filepath: str, device=None):
     """
     Recharge un LeNet5 sauvegardé avec save_mlp : reconstruit l'architecture
-    exacte (Reduced_network / Pytorch / no_constraints) à partir de la config
+    exacte (Reduced_network / Adam / SGD) à partir de la config
     stockée, puis charge les poids entraînés.
 
     Paramètres

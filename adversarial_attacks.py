@@ -24,7 +24,7 @@ Utilisation typique
 
     run_adversarial_experiment(
         checkpoint_paths=[
-            "checkpoints/CIFAR10_Pytorch.pth",
+            "checkpoints/CIFAR10_Adam.pth",
             "checkpoints/CIFAR10_Reduced_network.pth",
         ],
         n_images=200,
@@ -319,9 +319,9 @@ if __name__ == "__main__":
     # (générés en passant save_model=True à Run_experiment.run_experiment)
     run_adversarial_experiment(
         # checkpoint_paths=[
-        #     "checkpoints/MNIST_fashion_Pytorch.pth",
+        #     "checkpoints/MNIST_fashion_Adam.pth",
         #     "checkpoints/MNIST_fashion_Reduced_network.pth",
-        #     "checkpoints/MNIST_fashion_no_constraints.pth",
+        #     "checkpoints/MNIST_fashion_SGD.pth",
         # ],
         checkpoint_paths= ["checkpoints/CIFAR10_Reduced_network_momentum_True_adaptStep_True_SigSize_40_24_4.pth"],
         n_images=200,

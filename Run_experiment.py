@@ -12,7 +12,7 @@ import building_network, utils_Riem_opti, load_data, utils_pytorch
 
 def apply_optimizer(model, cfg, pt_optimizer, first_iteration, adaptative_step, beta2):
     
-    if cfg["optimizer_choice"] == "Pytorch":
+    if cfg["optimizer_choice"] == "Adam":
         pt_optimizer.step()
     elif cfg["optimizer_choice"] == "Reduced_network":
         building_network.reduced_network_optimizer(
@@ -20,7 +20,7 @@ def apply_optimizer(model, cfg, pt_optimizer, first_iteration, adaptative_step, 
             cfg["beta_momentum"], cfg["use_momentum"], first_iteration,
             adaptative_step, beta2
             )
-    elif cfg["optimizer_choice"] == "no_constraints":
+    elif cfg["optimizer_choice"] == "SGD":
         building_network.basic_optimizer(
             model, cfg["LR"], cfg["beta_momentum"], 
             cfg["use_momentum"], first_iteration
@@ -49,9 +49,13 @@ def run_experiment(cfg: dict, verbose = False, save_model = False,
 
     Returns
     -------
-    loss_curve   : list[float]  – one entry per epoch
-    dead_stats   : list[dict]   – one entry every STATS_EVERY epochs
-    final_metrics: dict         – PSNR, SSIM, final_L1
+    loss_curve   : list[[epoch, train_loss]]        – one entry per training batch
+                                                        (in epochs where epoch % STATS_EVERY == 0)
+    val_curve    : list[[epoch, val_loss, val_acc]] – one entry per epoch where
+                                                        epoch % STATS_EVERY == 0, computed
+                                                        on test_loader (used here as validation set)
+    final_metrics: dict                             – test_loss, test_acc, elapsed_s (and
+                                                        checkpoint_path if save_model=True)
     """
     t0 = time.time()
     torch.manual_seed(42)
@@ -88,12 +92,13 @@ def run_experiment(cfg: dict, verbose = False, save_model = False,
 
     # ── Optimizer  ──────────────────────────────────────────────────────
     pt_optimizer = None
-    if cfg["optimizer_choice"] == "Pytorch":
+    if cfg["optimizer_choice"] == "Adam":
         pt_optimizer = torch.optim.Adam(model.parameters(), lr=cfg["LR"])
 
 
     # ── History ─────────────────────────────────────────────────────────
     loss_curve  = []
+    val_curve   = []
 
     # ── Training loop ─────────────────────────────────────────────────────────
     for epoch in range(cfg["EPOCHS"]):
@@ -115,15 +120,18 @@ def run_experiment(cfg: dict, verbose = False, save_model = False,
                 labels
             )
 
-            # Stats de la loss function
-            if epoch % cfg["STATS_EVERY"] == 0:
-                loss_curve.append([epoch, loss.item()])
-
             loss.backward()
 
             # weight update
             apply_optimizer(model, cfg, pt_optimizer, epoch==0, cfg["adaptive_step"], cfg["beta2"])
 
+
+        # Loss (et accuracy) de validation, sur le même rythme que les stats d'entraînement
+        if epoch % cfg["STATS_EVERY"] == 0:
+            loss_curve.append([epoch, loss.item()])
+            val_loss, val_acc = utils_pytorch.evaluate(model, test_loader, criterion, device)
+            val_curve.append([epoch, val_loss, val_acc])
+            model.train()  # evaluate() bascule le modèle en eval(), on repasse en train() pour la suite
 
         if verbose and epoch % 100 == 0:
             print(f"Epoch {epoch:4d} | Loss: {loss.item():.6f}")
@@ -158,10 +166,11 @@ def run_experiment(cfg: dict, verbose = False, save_model = False,
         # plusieurs modèles (différents datasets / optimizers) sans les
         # écraser les uns les autres.
         if run_name is None:
-            if cfg['optimizer_choice'] in ("Pytorch", "no_constraints"):
+            if cfg['optimizer_choice'] in ("Adam", "SGD"):
                 run_name = f"{cfg.get('dataset', 'MNIST_fashion')}_{cfg['optimizer_choice']}_layerSize_{cfg["taille_couches"][0]}_{cfg["taille_couches"][1]}"
             else :
                 run_name = f"{cfg.get('dataset', 'MNIST_fashion')}_{cfg['optimizer_choice']}_momentum_{cfg["use_momentum"]}_adaptStep_{cfg["adaptive_step"]}_SigSize_{cfg["sigma_sizes"][0]}_{cfg["sigma_sizes"][1]}_{cfg["sigma_sizes"][2]}"
+
 
         filepath = os.path.join(checkpoint_dir, f"{run_name}.pth")
 
@@ -181,4 +190,4 @@ def run_experiment(cfg: dict, verbose = False, save_model = False,
 
         final_metrics["checkpoint_path"] = filepath
 
-    return loss_curve, final_metrics
+    return loss_curve, val_curve, final_metrics

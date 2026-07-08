@@ -63,11 +63,15 @@ def create_output_dir(cfg, benchmark):
     return output_dir, meta
 
 
-def save_loss_curve(cfg, loss_curve, benchmark = False):
+def save_loss_curve(cfg, loss_curve, benchmark = False, loss_val = True):
 
     output_dir, meta = create_output_dir(cfg, benchmark)
 
-    loss_csv   = output_dir / "loss_curves.csv"
+    if loss_val:
+        loss_csv   = output_dir / "loss_curves.csv"
+    else:
+        loss_csv   = output_dir / "val_curves.csv"
+
 
     loss_fields   = ["run_id", "dataset", "optimizer_choice", "LR", "LR_UV", "use_momentum", "beta_momentum", 
                     "LR_UV", "sigma_size_1", "sigma_size_2", "sigma_size_3", "taille_couche1", "taille_couche2", "adaptive_step", "beta2", "EPOCHS", "epoch", "loss"]

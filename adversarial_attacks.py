@@ -323,7 +323,12 @@ if __name__ == "__main__":
         #     "checkpoints/MNIST_fashion_Reduced_network.pth",
         #     "checkpoints/MNIST_fashion_SGD.pth",
         # ],
-        checkpoint_paths= ["checkpoints/CIFAR10_Reduced_network_momentum_True_adaptStep_True_SigSize_40_24_4.pth"],
+        checkpoint_paths= [
+            "checkpoints_benchmark/CIFAR10_Adam_layerSize_69_40.pth",
+            "checkpoints_benchmark/CIFAR10_Reduced_network_momentum_True_adaptStep_False_SigSize_40_24_4.pth",
+            "checkpoints_benchmark/CIFAR10_Reduced_network_momentum_True_adaptStep_True_SigSize_40_24_4.pth",
+            "checkpoints_benchmark/CIFAR10_SGD_layerSize_69_40.pth",
+            ],
         n_images=200,
         epsilons=[0.01, 0.05, 0.1, 0.2],
         #n_pixels_list=[None, 20, 50, 100],

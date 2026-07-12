@@ -182,7 +182,7 @@ def plot_loss_curves(df: pd.DataFrame, fname, param_cols: list[str]):
                 color=METHOD_COLORS[(cfg["optimizer_choice"],cfg.get("adaptive_step", False))], 
                 linewidth=1.8)
 
-        ax.set_xlabel("Epoch")
+        ax.set_xlabel("Iteration")
         ax.set_ylabel("Loss (mean over images)")
         ax.set_title(f"Loss curves – group {chunk_idx + 1}")
         ax.legend(fontsize=8, loc="upper right")

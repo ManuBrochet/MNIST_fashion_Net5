@@ -37,7 +37,7 @@ PARAM_GRID = {
 DEFAULT_CFG = dict(
     # HIDDEN_SIZE             = 44,     # Approx 5000 parameters
     EPOCHS                  = 4700,
-    STATS_EVERY             = 1,
+    STATS_EVERY             = 10,
     BATCH_SIZE              = 128,
     dataset                 = "CIFAR10"
 )

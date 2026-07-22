@@ -11,8 +11,9 @@ import Run_experiment, utils_files, plot_results
 
 # Learning rates are set per-optimizer as requested.
 LR_MAP = {
-    "Adam":      0.001,
-    "Reduced_network": 0.05,
+    "Adam":      0.0005,
+    "Reduced_network": 0.1,
+    "Reduced_network_iso": 0.01,
     "SGD": 0.001,
 }
 
@@ -20,7 +21,8 @@ LR_MAP = {
 # Fields that are not present fall back to the defaults defined in DEFAULT_CFG.
 PARAM_GRID = {
     # Can be "Adam", "Reduced_network", "SGD"
-    "optimizer_choice": ["Adam", "SGD", "Reduced_network"],
+    "optimizer_choice": ["Adam", "SGD", "Reduced_network", "Reduced_network_iso"],
+    # "optimizer_choice": ["Reduced_network_iso"],
     "tanh_loss":        [False],
     "use_momentum":     [True],
     # Ignored when use_momentum == False
@@ -28,7 +30,9 @@ PARAM_GRID = {
     # "beta_momentum":    [0.1, 0.3, 0.5, 0.7, 0.9],
     "proportion_dead_neurons" : [0.5],
     "LR_UV":            [0.1],
+    "LR_UV_iso":            [0.1],
     "sigma_sizes":       [[40, 24, 4]],
+    # à checker
     "taille_couches":      [[69, 40]],
     "adaptive_step":    [False, True],
     "beta2":            [0.9]
@@ -36,10 +40,14 @@ PARAM_GRID = {
 
 DEFAULT_CFG = dict(
     # HIDDEN_SIZE             = 44,     # Approx 5000 parameters
-    EPOCHS                  = 4700,
-    STATS_EVERY             = 10,
+    EPOCHS                  = 201,
+    STATS_EVERY             = 5,
     BATCH_SIZE              = 128,
-    dataset                 = "CIFAR10"
+    dataset                 = "CIFAR10",
+    # Early stopping params
+    early_stopping          = True,
+    patience                = 25,
+    min_delta               = 1e-4
 )
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -64,7 +72,7 @@ def main():
     print(f"Device : {device}")
 
     # Build full config list from grid
-    MOMENTUM_OPTIMIZERS = {"Reduced_network", "SGD"}
+    MOMENTUM_OPTIMIZERS = {"Reduced_network", "Reduced_network_iso", "SGD"}
     keys   = list(PARAM_GRID.keys())
     combos = list(itertools.product(*[PARAM_GRID[k] for k in keys]))
     configs = []
@@ -84,8 +92,11 @@ def main():
             if cfg["beta_momentum"] != PARAM_GRID["beta_momentum"][0]:
                 continue
             cfg["beta_momentum"] = ""   # not applicable — keep CSV clean
+        if cfg["optimizer_choice"] not in ("Reduced_network", "Reduced_network_iso"):
+            if cfg["LR_UV"] != PARAM_GRID["LR_UV"][0] or cfg["sigma_sizes"] != PARAM_GRID["sigma_sizes"][0]:
+                continue
         if cfg["optimizer_choice"] != "Reduced_network":
-            if cfg["LR_UV"] != PARAM_GRID["LR_UV"][0] or cfg["sigma_sizes"] != PARAM_GRID["sigma_sizes"][0] or cfg["adaptive_step"] != PARAM_GRID["adaptive_step"][0]:
+            if cfg["adaptive_step"] != PARAM_GRID["adaptive_step"][0]:
                 continue
         if not cfg["optimizer_choice"] in ("SGD", "Adam"):
             if cfg["taille_couches"] != PARAM_GRID["taille_couches"][0]:

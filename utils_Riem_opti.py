@@ -121,6 +121,52 @@ def stiefel_step_torch_momentum(
     return X_new, momentum, v, v_tilde
 
 
+def stiefel_step_torch_momentum_iso(
+        X, X_perp, A_k_1, B_k_1, G_euc, momentum, 
+        step, beta_momentum, first_iteration):
+
+    G = - G_euc
+
+    A_k = X.T @ G - G.T @ X           # (p,p)
+    B_k = X_perp.T @ G                # (n-p,p)
+
+    if first_iteration:
+        A_final = A_k
+        B_final = B_k
+
+        momentum = X @ A_k + X_perp @ B_k
+
+    else:
+        # print("La shape du momentum : ", momentum.shape)
+
+        A_final = beta_momentum * A_k_1 + (1-beta_momentum) * A_k
+        B_final = beta_momentum * B_k_1 + (1-beta_momentum) * B_k
+
+        # Maj momentum : prise en compte du grad riem que l'on vient de calculer
+        momentum = X @ A_k_1 + X_perp @ B_k_1
+
+    p = A_final.shape[0]
+    n_p = B_final.shape[0]
+
+    # Build K
+    K = torch.zeros((p + n_p, p + n_p), device=X.device, dtype=X.dtype)
+
+    K[:p, :p] = A_k_1
+    K[:p, p:] = -B_k_1.T
+    K[p:, :p] = B_k_1
+
+    E = torch.matrix_exp(step * K)
+
+    # Extract blocks : we take to :p because of the I_n*p matrix
+    E11 = E[:p, :p]
+    E21 = E[p:, :p]
+
+    # Update WITHOUT forming Q
+    X_new = X @ E11 + X_perp @ E21
+
+    return X_new, momentum, A_final, B_final
+
+
 # ====================================================================================
 # Initialisation
 # ====================================================================================

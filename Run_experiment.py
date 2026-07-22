@@ -2,6 +2,7 @@ import os
 import torch
 import torch.nn as nn
 import time
+import copy
 
 import building_network, utils_Riem_opti, load_data, utils_pytorch
 
@@ -25,6 +26,11 @@ def apply_optimizer(model, cfg, pt_optimizer, first_iteration, adaptative_step, 
             model, cfg["LR"], cfg["beta_momentum"], 
             cfg["use_momentum"], first_iteration
             )
+    elif cfg["optimizer_choice"] == "Reduced_network_iso":
+        building_network.reduced_network_optimizer_iso(
+            model, cfg["LR"], cfg["LR_UV_iso"], 
+            cfg["beta_momentum"], cfg["use_momentum"], first_iteration
+        )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -84,7 +90,7 @@ def run_experiment(cfg: dict, verbose = False, save_model = False,
         ).to(device)
     
 
-    if cfg["optimizer_choice"] in ("Reduced_network"):
+    if cfg["optimizer_choice"] in ("Reduced_network", "Reduced_network_iso"):
         utils_Riem_opti.initialize_reduced_model(model)
 
     # ── loss  ──────────────────────────────────────────────────────
@@ -99,6 +105,11 @@ def run_experiment(cfg: dict, verbose = False, save_model = False,
     # ── History ─────────────────────────────────────────────────────────
     loss_curve  = []
     val_curve   = []
+
+    # ── Early stopping variables ─────────────────────────────────────────────────────────
+    best_val_loss = float("inf")
+    best_model_state = None
+    epochs_without_improvement = 0
 
     # ── Training loop ─────────────────────────────────────────────────────────
     for epoch in range(cfg["EPOCHS"]):
@@ -126,19 +137,56 @@ def run_experiment(cfg: dict, verbose = False, save_model = False,
             apply_optimizer(model, cfg, pt_optimizer, epoch==0, cfg["adaptive_step"], cfg["beta2"])
 
 
-        # Loss (et accuracy) de validation, sur le même rythme que les stats d'entraînement
-        if epoch % cfg["STATS_EVERY"] == 0:
-            loss_curve.append([epoch, loss.item()])
-            val_loss, val_acc = utils_pytorch.evaluate(model, test_loader, criterion, device)
-            val_curve.append([epoch, val_loss, val_acc])
-            model.train()  # evaluate() bascule le modèle en eval(), on repasse en train() pour la suite
+        loss_curve.append([epoch, loss.item()])
 
-        if verbose and epoch % 100 == 0:
+        val_loss, val_acc = utils_pytorch.evaluate(
+            model,
+            test_loader,
+            criterion,
+            device
+        )
+
+        val_curve.append([epoch, val_loss, val_acc])
+
+        # ---------------- Early stopping ----------------
+        if cfg.get("early_stopping", False):
+
+            if val_loss < best_val_loss - cfg.get("min_delta", 0.0):
+                best_val_loss = val_loss
+                best_model_state = copy.deepcopy(model.state_dict())
+                epochs_without_improvement = 0
+
+            else:
+                epochs_without_improvement += 1
+
+                if verbose:
+                    print(
+                        f"No improvement for "
+                        f"{epochs_without_improvement}/{cfg['patience']} epochs."
+                    )
+
+                if epochs_without_improvement >= cfg["patience"]:
+                    print(f"Early stopping at epoch {epoch}.")
+                    break
+
+
+        model.train()
+
+        # # Loss (et accuracy) de validation, sur le même rythme que les stats d'entraînement
+        # if epoch % cfg["STATS_EVERY"] == 0:
+        #     loss_curve.append([epoch, loss.item()])
+        #     val_loss, val_acc = utils_pytorch.evaluate(model, test_loader, criterion, device)
+        #     val_curve.append([epoch, val_loss, val_acc])
+        #     model.train()  # evaluate() bascule le modèle en eval(), on repasse en train() pour la suite
+
+        if verbose and epoch % 10 == 0:
             print(f"Epoch {epoch:4d} | Loss: {loss.item():.6f}")
 
     if verbose:
         print("\nTraining done !")
 
+    if best_model_state is not None:
+        model.load_state_dict(best_model_state)
 
     test_loss, test_acc = utils_pytorch.evaluate(
         model,

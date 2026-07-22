@@ -51,3 +51,9 @@ Contraintes de rang peut aider à controler la cst de Lip (pour attaques adversa
 attaque PDG -> la plus simple
 
 gradcam : quels pixels contribuent le plus à la classe
+
+
+Regarder stats neurones mort pour expli	quer attaques 
+Calcul cst de Lip ?
+
+Conf : SSVM

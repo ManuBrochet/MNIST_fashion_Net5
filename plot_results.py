@@ -45,13 +45,18 @@ METHOD_ORDER = [
     ("Adam", False),
     ("Reduced_network", False),
     ("Reduced_network", True),
+    ("Reduced_network_iso", False),
 ]
 
 METHOD_COLORS = {
     ("SGD", False): "#1f77b4",          # bleu
+    # ("SGD", True): "#1f77b4",          # bleu
     ("Adam", False): "#ff7f0e",         # orange
+    # ("Adam", True): "#ff7f0e",         # orange
     ("Reduced_network", False): "#2ca02c",  # vert
     ("Reduced_network", True): "#d62728",   # rouge
+    ("Reduced_network_iso", False): "#A020F0",   # violet
+
 }
 
 # ── Helpers ────────────────────────────────────────────────────────────────────

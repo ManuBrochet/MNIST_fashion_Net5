@@ -11,10 +11,10 @@ if __name__ == "__main__":
         BATCH_SIZE           = 128,     # Can be 32, 64 or 128
 
         # ML param
-        EPOCHS          = 4700,
-        LR              = 0.05,
-        # Can be "Adam", "Reduced_network", "SGD"
-        optimizer_choice = "Reduced_network",
+        EPOCHS          = 500,
+        LR              = 0.01,
+        # Can be "Adam", "Reduced_network", "Reduced_network_iso", "SGD"
+        optimizer_choice = "Reduced_network_iso",
         
         # Momentum param
         use_momentum    = True,
@@ -24,6 +24,7 @@ if __name__ == "__main__":
         sigma_sizes = [40, 24, 4],  # 50% de params en moins
         # sigma_sizes = [20, 12, 4],  # 75% de params en moins
         LR_UV = 0.1,
+        LR_UV_iso = 0.05,
 
         # Others
         STATS_EVERY     = 1,
@@ -36,8 +37,13 @@ if __name__ == "__main__":
         # taille_couches = [38, 14],
 
         # adaptive_step params
-        adaptive_step = True,
+        adaptive_step = False,
         beta2 = 0.9,
+
+        # Early stopping params
+        early_stopping=True,
+        patience=10,
+        min_delta=1e-4,
 
         dataset = "CIFAR10",  # "CIFAR10", "CIFAR100", "MNIST_fashion"
     )

@@ -12,6 +12,8 @@ import os
 import matplotlib.pyplot as plt
 import pandas as pd
 
+from plot_results import METHOD_COLORS, METHOD_ORDER
+
 
 def load_results(csv_path):
     return pd.read_csv(csv_path)

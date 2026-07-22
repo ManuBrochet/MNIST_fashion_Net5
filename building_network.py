@@ -72,7 +72,7 @@ class LeNet5(nn.Module):
 
         # 16 x 5 x 5 = 256
 
-        if optimizer == "Reduced_network":
+        if optimizer in ("Reduced_network", "Reduced_network_iso"):
             self.fc1 = ReducedLinear(
                 dataset_sizes[1],
                 taille_couche1_reduced,
@@ -190,6 +190,64 @@ def reduced_network_optimizer(
                 if adaptative_step:
                     param.v_buffer = v_buffer
                     param.v_tilde_buffer = v_tilde_buffer
+
+            else :
+                utils_math.opti_euclidienn(
+                    param=param, learning_rate=learning_rate, use_momentum=use_momentum,
+                    momentum=momentum, beta_momentum=beta_momentum
+                    )
+
+def reduced_network_optimizer_iso(
+    model, learning_rate, LR_UV, beta_momentum, use_momentum, first_iteration,
+    ):
+
+    with torch.no_grad():
+        for name, param in model.named_parameters():
+
+            # Si pas de gradients, pas d'optimisation
+            if param.grad is None:
+                continue
+
+            if use_momentum:
+                # ----------------------------------------
+                # 1. Momentum buffer (créé si inexistant)
+                # ----------------------------------------
+                if not hasattr(param, "momentum_buffer"):
+                    param.momentum_buffer = torch.zeros_like(param)
+                momentum = param.momentum_buffer
+            else: momentum = None            
+
+            # Only Stiefel optimize Q
+            if "U" in name or "V" in name:
+
+                if not hasattr(param, "A_k"): 
+                    param.A_k_buffer = torch.zeros((param.shape[1], param.shape[1]))  # shape (p,p)
+                A_k = param.A_k_buffer
+                if not hasattr(param, "B_k"):
+                    param.B_k_buffer = torch.zeros((param.shape[0]- param.shape[1], param.shape[1])) # shape (n-p,p)
+                B_k = param.B_k_buffer
+
+                X = param
+                G = param.grad
+
+                X_perp = utils_math.compute_X_perp_torch(X)
+
+                # Stiefel update
+                if use_momentum:
+                    X_new, momentum, A_k, B_k = utils_Riem_opti.stiefel_step_torch_momentum_iso(
+                        X, X_perp, A_k, B_k, G, momentum, LR_UV, beta_momentum, first_iteration
+                        )
+                else:
+                    X_new = utils_Riem_opti.stiefel_step_torch(X, X_perp, G, LR_UV)
+
+                param.copy_(X_new)
+
+                param.grad.zero_()
+
+                if use_momentum:
+                    param.momentum_buffer.copy_(momentum)
+                    param.A_k_buffer.copy_(A_k)
+                    param.B_k_buffer.copy_(B_k)
 
             else :
                 utils_math.opti_euclidienn(

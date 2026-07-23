@@ -195,9 +195,10 @@ def plot_loss_curves(df: pd.DataFrame, fname, param_cols: list[str]):
         fig.tight_layout()
 
         # fname = OUTPUT_DIR / f"loss_curves_group{chunk_idx + 1:02d}.png"
-        fig.savefig(fname, dpi=150)
+        fname_save = fname + f"_{chunk_idx + 1:02d}.png"
+        fig.savefig(fname_save, dpi=150)
         plt.close(fig)
-        print(f"  Saved {fname.name}")
+        print(f"  Saved {fname_save}")
 
 
 # ── 3. Final metrics ───────────────────────────────────────────────────────────
@@ -274,6 +275,122 @@ def plot_final_metrics(df: pd.DataFrame, fname, param_cols: list[str]):
         fig.suptitle(f"Final metrics (mean ± std over images) – group {chunk_idx + 1}")
         fig.tight_layout()
 
-        fig.savefig(fname, dpi=150, bbox_inches="tight")
+        fname_save = fname + f"_{chunk_idx + 1:02d}.png"
+
+        fig.savefig(fname_save, dpi=150, bbox_inches="tight")
         plt.close(fig)
-        print(f"  Saved {fname.name}")
+        print(f"  Saved {fname_save}")
+
+
+
+def plot_mean_dead_ratio(df, fname):
+
+    summary = (
+        df.groupby(["epoch", "layer"])
+          ["dead_ratio"]
+          .mean()
+          .reset_index()
+    )
+
+    fig = plt.figure(figsize=(7,4))
+
+    for layer in summary.layer.unique():
+
+        sub = summary[summary.layer == layer]
+
+        plt.plot(
+            sub.epoch,
+            sub.dead_ratio,
+            label=layer,
+            linewidth=2
+        )
+
+    plt.xlabel("Epoch")
+    plt.ylabel("Mean dead ratio")
+    plt.ylim(0,1)
+    plt.grid(True)
+    plt.legend()
+
+    plt.tight_layout()
+
+    fig.savefig(fname, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+
+def plot_dead_neuron_count(df, fname):
+
+    summary = (
+        df.assign(dead=lambda x: x.dead_ratio == 1)
+          .groupby(["epoch", "layer"])
+          ["dead"]
+          .sum()
+          .reset_index()
+    )
+
+    fig = plt.figure(figsize=(7,4))
+
+    for layer in summary.layer.unique():
+
+        sub = summary[summary.layer == layer]
+
+        plt.plot(
+            sub.epoch,
+            sub.dead,
+            label=layer,
+            linewidth=2
+        )
+
+    plt.xlabel("Epoch")
+    plt.ylabel("# completely dead neurons")
+    plt.grid(True)
+    plt.legend()
+
+    plt.tight_layout()
+
+    fig.savefig(fname, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+def plot_dead_histogram(df, epoch, fname):
+
+    subset = df[df.epoch == epoch]
+
+    fig = plt.figure(figsize=(7,4))
+
+    plt.hist(
+        subset.dead_ratio,
+        bins=20
+    )
+
+    plt.xlabel("Dead ratio")
+    plt.ylabel("Number of neurons")
+
+    plt.tight_layout()
+
+    fig.savefig(fname, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+if __name__ == "__main__":
+    
+    path_dir = "benchmark_results/CIFAR10/"
+
+    path_loss = path_dir + "loss_curve.csv"
+    path_val = path_dir + "val_curve.csv"
+    path_metrics = path_dir + "final_metrics.csv"
+
+    # save loss curve
+    df_loss    = load_and_clean(path_loss)
+    param_cols_loss = detect_param_cols(df_loss)
+    print("→ Generating loss curves…")
+    plot_loss_curves(df_loss, path_dir + "loss_curve", param_cols_loss)
+
+    # save validation curve
+    df_loss    = load_and_clean(path_val)
+    param_cols_loss = detect_param_cols(df_loss)
+    print("→ Generating loss curves…")
+    plot_loss_curves(df_loss, path_dir + "val_curve", param_cols_loss)
+
+    # Final metrics
+    df_loss    = load_and_clean(path_metrics)
+    param_cols_loss = detect_param_cols(df_loss)
+    print("→ Generating metrics curves…")
+    plot_final_metrics(df_loss, path_dir + "final_metrics", param_cols_loss)

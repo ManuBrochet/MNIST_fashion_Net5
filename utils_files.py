@@ -1,7 +1,6 @@
 from pathlib import Path
 import csv
-import argparse
-
+import pandas  as pd
 
 def make_run_id(cfg: dict) -> str:
     opt = cfg["optimizer_choice"]
@@ -21,6 +20,7 @@ def build_meta_row(run_id: str, cfg: dict) -> dict:
     return {
         "run_id":               run_id,
         "dataset":              cfg["dataset"],
+        "seed":                 cfg["seed"],
         "optimizer_choice":     cfg["optimizer_choice"],
         "LR":                   cfg["LR"],
         "EPOCHS":               cfg["EPOCHS"],
@@ -31,7 +31,7 @@ def build_meta_row(run_id: str, cfg: dict) -> dict:
         "sigma_size_2":         cfg["sigma_sizes"][1],
         "sigma_size_3":         cfg["sigma_sizes"][2],
         "taille_couche1":       cfg["taille_couches"][0],
-        "taille_couche1":       cfg["taille_couches"][1],
+        "taille_couche2":       cfg["taille_couches"][1],
         "adaptive_step":        cfg["adaptive_step"], 
         "beta2":                cfg["beta2"], 
     }
@@ -63,17 +63,14 @@ def create_output_dir(cfg, benchmark):
     return output_dir, meta
 
 
-def save_loss_curve(cfg, loss_curve, benchmark = False, loss_val = True):
+def save_loss_curve(cfg, loss_curve, benchmark = False, wich_curve = "loss_curve.csv"):
 
     output_dir, meta = create_output_dir(cfg, benchmark)
 
-    if loss_val:
-        loss_csv   = output_dir / "loss_curves.csv"
-    else:
-        loss_csv   = output_dir / "val_curves.csv"
+    loss_csv = output_dir / wich_curve
 
 
-    loss_fields   = ["run_id", "dataset", "optimizer_choice", "LR", "LR_UV", "use_momentum", "beta_momentum", 
+    loss_fields   = ["run_id", "dataset", "seed", "optimizer_choice", "LR", "LR_UV", "use_momentum", "beta_momentum", 
                     "LR_UV", "sigma_size_1", "sigma_size_2", "sigma_size_3", "taille_couche1", "taille_couche2", "adaptive_step", "beta2", "EPOCHS", "epoch", "loss"]
 
     loss_fh,   loss_writer   = open_csv(loss_csv,   loss_fields)
@@ -92,7 +89,7 @@ def save_final_metrics(cfg, final_metrics, benchmark = False):
 
     loss_csv   = output_dir / "final_metrics.csv"
 
-    loss_fields   = ["run_id", "dataset", "optimizer_choice", "LR", "LR_UV", "use_momentum", "beta_momentum", 
+    loss_fields   = ["run_id", "dataset", "seed", "optimizer_choice", "LR", "LR_UV", "use_momentum", "beta_momentum", 
                     "LR_UV", "sigma_size_1", "sigma_size_2", "sigma_size_3", "taille_couche1", "taille_couche2", "adaptive_step", "beta2", "EPOCHS", "test_loss", "test_acc", "elapsed_s"]
 
     metrics_fh,   metrics_writer   = open_csv(loss_csv,   loss_fields)
@@ -102,3 +99,55 @@ def save_final_metrics(cfg, final_metrics, benchmark = False):
     metrics_fh.flush()
 
     return loss_csv, output_dir
+
+def save_dead_neuron_stats(cfg, dead_stats, filename, benchmark = True):
+    """
+    dead_stats is a list like
+
+    [
+        {
+            "epoch": 0,
+            "fc1": tensor(...),
+            "fc2": tensor(...)
+        },
+        ...
+    ]
+    """
+
+    output_dir, meta = create_output_dir(cfg, benchmark)
+
+    dead_stats_csv = output_dir / filename
+
+    dead_stats_fields   = ["run_id", "dataset", "seed", "optimizer_choice", "LR", "LR_UV", "use_momentum", "beta_momentum", 
+                    "LR_UV", "sigma_size_1", "sigma_size_2", "sigma_size_3", "taille_couche1", "taille_couche2", "adaptive_step", "beta2", "EPOCHS", "epoch", "layer", "neuron", "dead_ratio"]
+
+    dead_stats_fh, dead_stats_writer = open_csv(dead_stats_csv, dead_stats_fields)
+
+    rows = []
+
+    for epoch_stats in dead_stats:
+
+        epoch = epoch_stats["epoch"]
+
+        for layer in ("fc1", "fc2"):
+
+            values = epoch_stats[layer].cpu().numpy()
+
+            for neuron, ratio in enumerate(values):
+
+                rows.append({
+                    "epoch": epoch,
+                    "layer": layer,
+                    "neuron": neuron,
+                    "dead_ratio": float(ratio)
+                })
+
+                dead_stats_writer.writerow({**meta, "epoch": epoch, "layer": layer, "neuron": neuron, "dead_ratio": float(ratio)})
+    dead_stats_fh.flush()
+        
+
+    df = pd.DataFrame(rows)
+    # df.to_csv(filename, index=False)
+
+    
+    return df

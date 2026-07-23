@@ -21,8 +21,8 @@ LR_MAP = {
 # Fields that are not present fall back to the defaults defined in DEFAULT_CFG.
 PARAM_GRID = {
     # Can be "Adam", "Reduced_network", "SGD"
-    "optimizer_choice": ["Adam", "SGD", "Reduced_network", "Reduced_network_iso"],
-    # "optimizer_choice": ["Reduced_network_iso"],
+    # "optimizer_choice": ["Adam", "SGD", "Reduced_network", "Reduced_network_iso"],
+    "optimizer_choice": ["Adam"],
     "tanh_loss":        [False],
     "use_momentum":     [True],
     # Ignored when use_momentum == False
@@ -33,14 +33,16 @@ PARAM_GRID = {
     "LR_UV_iso":            [0.1],
     "sigma_sizes":       [[40, 24, 4]],
     # à checker
-    "taille_couches":      [[69, 40]],
+    "taille_couches":      [[120, 84], [69, 40]],
     "adaptive_step":    [False, True],
-    "beta2":            [0.9]
+    "beta2":            [0.9],
+    # "seed":             list(range(2))
+    "seed":             [42]
 }
 
 DEFAULT_CFG = dict(
     # HIDDEN_SIZE             = 44,     # Approx 5000 parameters
-    EPOCHS                  = 201,
+    EPOCHS                  = 3,
     STATS_EVERY             = 5,
     BATCH_SIZE              = 128,
     dataset                 = "CIFAR10",
@@ -108,37 +110,41 @@ def main():
 
     print(f"Configurations : {nb_total_configs}")
 
-    run_number = 0
-
     for (nb_config, cfg) in enumerate(configs):
 
         print("Config ", nb_config + 1, " / ", nb_total_configs)
 
-        loss_curve, val_curve, final_metrics = Run_experiment.run_experiment(
+        loss_curve, val_curve, final_metrics, dead_stats = Run_experiment.run_experiment(
             cfg=cfg, verbose=False, save_model=True, checkpoint_dir="checkpoints_benchmark"
         )
 
         # save loss curve
-        path_csv, path_dir = utils_files.save_loss_curve(cfg, loss_curve, benchmark=True, loss_val=True)
-        df_loss    = plot_results.load_and_clean(path_csv)
-        param_cols_loss = plot_results.detect_param_cols(df_loss)
-        print("→ Generating loss curves…")
-        plot_results.plot_loss_curves(df_loss, path_dir / "loss_curve.png", param_cols_loss)
+        path_csv, path_dir = utils_files.save_loss_curve(cfg, loss_curve, benchmark=True, wich_curve="loss_curve.csv")
+        # df_loss    = plot_results.load_and_clean(path_csv)
+        # param_cols_loss = plot_results.detect_param_cols(df_loss)
+        # print("→ Generating loss curves…")
+        # plot_results.plot_loss_curves(df_loss, str(path_dir) + "loss_curve", param_cols_loss)
 
         # save validation curve
-        path_csv, path_dir = utils_files.save_loss_curve(cfg, val_curve, benchmark=True, loss_val=False)
-        df_loss    = plot_results.load_and_clean(path_csv)
-        param_cols_loss = plot_results.detect_param_cols(df_loss)
-        print("→ Generating loss curves…")
-        plot_results.plot_loss_curves(df_loss, path_dir / "val_curve.png", param_cols_loss)
+        path_csv, path_dir = utils_files.save_loss_curve(cfg, val_curve, benchmark=True, wich_curve="val_curve.csv")
+        # df_loss    = plot_results.load_and_clean(path_csv)
+        # param_cols_loss = plot_results.detect_param_cols(df_loss)
+        # print("→ Generating loss curves…")
+        # plot_results.plot_loss_curves(df_loss, str(path_dir) + "val_curve", param_cols_loss)
+
+        # save dead neurons stats
+        df = utils_files.save_dead_neuron_stats(cfg, dead_stats, "dead_neurons.csv")
+        # plot_results.plot_mean_dead_ratio(df, path_dir / "dead_neurons.png")
+        # plot_results.plot_dead_neuron_count(df, path_dir / "dead_neurons_count.png")
+        # plot_results.plot_dead_histogram(df, epoch, fname)
 
 
         # Final metrics
         path_csv, path_dir = utils_files.save_final_metrics(cfg, final_metrics, benchmark=True)
-        df_loss    = plot_results.load_and_clean(path_csv)
-        param_cols_loss = plot_results.detect_param_cols(df_loss)
-        print("→ Generating metrics curves…")
-        plot_results.plot_final_metrics(df_loss, path_dir / "final_metrics.png", param_cols_loss)
+        # df_loss    = plot_results.load_and_clean(path_csv)
+        # param_cols_loss = plot_results.detect_param_cols(df_loss)
+        # print("→ Generating metrics curves…")
+        # plot_results.plot_final_metrics(df_loss, str(path_dir) + "final_metrics", param_cols_loss)
 
     print(f"\nDone. Results in {output_dir}/")
 

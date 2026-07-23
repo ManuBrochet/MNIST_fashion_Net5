@@ -4,7 +4,8 @@ import torch.nn as nn
 import time
 import copy
 
-import building_network, utils_Riem_opti, load_data, utils_pytorch
+import utils_math
+import building_network, utils_Riem_opti, load_data, utils_pytorch, utils_math
 
 # ─────────────────────────────────────────────────────────────────────────────
 # General helpers
@@ -64,7 +65,7 @@ def run_experiment(cfg: dict, verbose = False, save_model = False,
                                                         checkpoint_path if save_model=True)
     """
     t0 = time.time()
-    torch.manual_seed(42)
+    torch.manual_seed(cfg["seed"])
 
 
     # ── data ──────────────────────────────────────────────────────────────────
@@ -105,12 +106,13 @@ def run_experiment(cfg: dict, verbose = False, save_model = False,
     # ── History ─────────────────────────────────────────────────────────
     loss_curve  = []
     val_curve   = []
+    dead_stats  = []   # list of {"epoch": int, "fc1": float, "fc2": float, "fc3": float}
 
     # ── Early stopping variables ─────────────────────────────────────────────────────────
     best_val_loss = float("inf")
     best_model_state = None
     epochs_without_improvement = 0
-
+    
     # ── Training loop ─────────────────────────────────────────────────────────
     for epoch in range(cfg["EPOCHS"]):
 
@@ -136,8 +138,20 @@ def run_experiment(cfg: dict, verbose = False, save_model = False,
             # weight update
             apply_optimizer(model, cfg, pt_optimizer, epoch==0, cfg["adaptive_step"], cfg["beta2"])
 
-
+        
         loss_curve.append([epoch, loss.item()])
+
+        # DEAD NEURONS STATS
+        stats = utils_math.compute_dead_neuron_stats(
+            model,
+            train_loader
+        )
+
+        dead_stats.append({
+            "epoch": epoch,
+            "fc1": stats["fc1"].cpu(),
+            "fc2": stats["fc2"].cpu(),
+        })
 
         val_loss, val_acc = utils_pytorch.evaluate(
             model,
@@ -168,7 +182,6 @@ def run_experiment(cfg: dict, verbose = False, save_model = False,
                 if epochs_without_improvement >= cfg["patience"]:
                     print(f"Early stopping at epoch {epoch}.")
                     break
-
 
         model.train()
 
@@ -238,4 +251,4 @@ def run_experiment(cfg: dict, verbose = False, save_model = False,
 
         final_metrics["checkpoint_path"] = filepath
 
-    return loss_curve, val_curve, final_metrics
+    return loss_curve, val_curve, final_metrics, dead_stats

@@ -57,3 +57,6 @@ Regarder stats neurones mort pour expli	quer attaques
 Calcul cst de Lip ?
 
 Conf : SSVM
+
+
+Comparer normes spectrales des matrices de poids

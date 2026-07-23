@@ -107,24 +107,21 @@ class LeNet5(nn.Module):
                 dataset_sizes[2]
             )
 
-    def forward(self, x):
+    def forward(self, x, return_activations=False):
 
-        x = self.pool(
-            F.relu(self.conv1(x))
-        )
-
-        x = self.pool(
-            F.relu(self.conv2(x))
-        )
+        x = self.pool(F.relu(self.conv1(x)))
+        x = self.pool(F.relu(self.conv2(x)))
 
         x = torch.flatten(x, 1)
 
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
+        a1 = F.relu(self.fc1(x))
+        a2 = F.relu(self.fc2(a1))
+        out = self.fc3(a2)
 
-        x = self.fc3(x)
+        if return_activations:
+            return out, (a1, a2)
 
-        return x
+        return out
 
 
 # ====================================================================================

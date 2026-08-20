@@ -21,8 +21,8 @@ LR_MAP = {
 # Fields that are not present fall back to the defaults defined in DEFAULT_CFG.
 PARAM_GRID = {
     # Can be "Adam", "Reduced_network", "SGD"
-    # "optimizer_choice": ["Adam", "SGD", "Reduced_network", "Reduced_network_iso"],
-    "optimizer_choice": ["Adam"],
+    "optimizer_choice": ["Adam", "SGD", "Reduced_network"],
+    # "optimizer_choice": ["Adam"],
     "tanh_loss":        [False],
     "use_momentum":     [True],
     # Ignored when use_momentum == False
@@ -37,18 +37,18 @@ PARAM_GRID = {
     "adaptive_step":    [False, True],
     "beta2":            [0.9],
     # "seed":             list(range(2))
-    "seed":             [42]
+    "seed":             [2,3,4]
 }
 
 DEFAULT_CFG = dict(
     # HIDDEN_SIZE             = 44,     # Approx 5000 parameters
-    EPOCHS                  = 3,
+    EPOCHS                  = 1001,
     STATS_EVERY             = 5,
     BATCH_SIZE              = 128,
     dataset                 = "CIFAR10",
     # Early stopping params
     early_stopping          = True,
-    patience                = 25,
+    patience                = 15,
     min_delta               = 1e-4
 )
 
@@ -106,45 +106,69 @@ def main():
 
         configs.append(cfg)
 
-    nb_total_configs = len(configs)
+    # The grid is generated with `seed` as the last product dimension,
+    # so `configs` is naturally ordered as:
+    #   config_1/seed_0, config_1/seed_1, ..., config_2/seed_0, ...
+    #
+    # Reorder the execution so that we run:
+    #   seed_0: config_1, config_2, ...
+    #   seed_1: config_1, config_2, ...
+    #   ...
+    #
+    # The configuration numbering below refers to the configuration
+    # independently of the seed.
+    seeds = PARAM_GRID["seed"]
+    configs_by_seed = {
+        seed: [cfg for cfg in configs if cfg["seed"] == seed]
+        for seed in seeds
+    }
 
-    print(f"Configurations : {nb_total_configs}")
+    nb_configs_per_seed = len(configs_by_seed[seeds[0]]) if seeds else 0
+    nb_total_runs = nb_configs_per_seed * len(seeds)
 
-    for (nb_config, cfg) in enumerate(configs):
+    print(f"Configurations par seed : {nb_configs_per_seed}")
+    print(f"Seeds : {len(seeds)}")
+    print(f"Nombre total de runs : {nb_total_runs}")
 
-        print("Config ", nb_config + 1, " / ", nb_total_configs)
+    for seed_idx, seed in enumerate(seeds):
+        print(f"\nSeed {seed} ({seed_idx + 1} / {len(seeds)})")
 
-        loss_curve, val_curve, final_metrics, dead_stats = Run_experiment.run_experiment(
-            cfg=cfg, verbose=False, save_model=True, checkpoint_dir="checkpoints_benchmark"
-        )
+        seed_configs = configs_by_seed[seed]
 
-        # save loss curve
-        path_csv, path_dir = utils_files.save_loss_curve(cfg, loss_curve, benchmark=True, wich_curve="loss_curve.csv")
-        # df_loss    = plot_results.load_and_clean(path_csv)
-        # param_cols_loss = plot_results.detect_param_cols(df_loss)
-        # print("→ Generating loss curves…")
-        # plot_results.plot_loss_curves(df_loss, str(path_dir) + "loss_curve", param_cols_loss)
+        for nb_config, cfg in enumerate(seed_configs):
+            print("Config ", nb_config + 1, " / ", nb_configs_per_seed)
 
-        # save validation curve
-        path_csv, path_dir = utils_files.save_loss_curve(cfg, val_curve, benchmark=True, wich_curve="val_curve.csv")
-        # df_loss    = plot_results.load_and_clean(path_csv)
-        # param_cols_loss = plot_results.detect_param_cols(df_loss)
-        # print("→ Generating loss curves…")
-        # plot_results.plot_loss_curves(df_loss, str(path_dir) + "val_curve", param_cols_loss)
+            loss_curve, val_curve, final_metrics, dead_stats = Run_experiment.run_experiment(
+                cfg=cfg, verbose=False, save_model=True, checkpoint_dir="checkpoints_benchmark"
+            )
 
-        # save dead neurons stats
-        df = utils_files.save_dead_neuron_stats(cfg, dead_stats, "dead_neurons.csv")
-        # plot_results.plot_mean_dead_ratio(df, path_dir / "dead_neurons.png")
-        # plot_results.plot_dead_neuron_count(df, path_dir / "dead_neurons_count.png")
-        # plot_results.plot_dead_histogram(df, epoch, fname)
+            # save loss curve
+            path_csv, path_dir = utils_files.save_loss_curve(cfg, loss_curve, benchmark=True, wich_curve="loss_curve.csv")
+            # df_loss    = plot_results.load_and_clean(path_csv)
+            # param_cols_loss = plot_results.detect_param_cols(df_loss)
+            # print("→ Generating loss curves…")
+            # plot_results.plot_loss_curves(df_loss, str(path_dir) + "loss_curve", param_cols_loss)
+
+            # save validation curve
+            path_csv, path_dir = utils_files.save_loss_curve(cfg, val_curve, benchmark=True, wich_curve="val_curve.csv")
+            # df_loss    = plot_results.load_and_clean(path_csv)
+            # param_cols_loss = plot_results.detect_param_cols(df_loss)
+            # print("→ Generating loss curves…")
+            # plot_results.plot_loss_curves(df_loss, str(path_dir) + "val_curve", param_cols_loss)
+
+            # save dead neurons stats
+            df = utils_files.save_dead_neuron_stats(cfg, dead_stats, "dead_neurons.csv")
+            # plot_results.plot_mean_dead_ratio(df, path_dir / "dead_neurons.png")
+            # plot_results.plot_dead_neuron_count(df, path_dir / "dead_neurons_count.png")
+            # plot_results.plot_dead_histogram(df, epoch, fname)
 
 
-        # Final metrics
-        path_csv, path_dir = utils_files.save_final_metrics(cfg, final_metrics, benchmark=True)
-        # df_loss    = plot_results.load_and_clean(path_csv)
-        # param_cols_loss = plot_results.detect_param_cols(df_loss)
-        # print("→ Generating metrics curves…")
-        # plot_results.plot_final_metrics(df_loss, str(path_dir) + "final_metrics", param_cols_loss)
+            # Final metrics
+            path_csv, path_dir = utils_files.save_final_metrics(cfg, final_metrics, benchmark=True)
+            # df_loss    = plot_results.load_and_clean(path_csv)
+            # param_cols_loss = plot_results.detect_param_cols(df_loss)
+            # print("→ Generating metrics curves…")
+            # plot_results.plot_final_metrics(df_loss, str(path_dir) + "final_metrics", param_cols_loss)
 
     print(f"\nDone. Results in {output_dir}/")
 

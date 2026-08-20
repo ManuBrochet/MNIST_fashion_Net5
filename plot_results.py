@@ -28,9 +28,10 @@ FIGSIZE_METRICS = (12, 5)
 
 # Columns that are never parameters
 NON_PARAM_COLS = {
-    "run_id", "image",
+    "run_id", "image", "seed",
     # metrics
     "final_L1", "PSNR", "SSIM", "elapsed_s",
+    "test_loss", "test_acc",
     # series
     "epoch", "loss",
     "fc1_mean_inactivity", "fc2_mean_inactivity", "fc3_mean_inactivity",
@@ -160,7 +161,72 @@ def sort_configs(all_configs):
 
 # ── 1. Loss curves ─────────────────────────────────────────────────────────────
 
+SEED_COL = "seed"
+
+
+def _mean_std_over_seeds(sub: pd.DataFrame, value_col: str, group_cols: list[str]):
+    """
+    Aggregate a quantity in two steps:
+      1. Average all observations belonging to the same seed.
+      2. Compute mean and std across seeds.
+
+    This prevents runs with more observations/images from receiving more weight
+    than the other seeds.
+    """
+    if SEED_COL not in sub.columns:
+        raise ValueError(f"Column '{SEED_COL}' is required to compute statistics over seeds.")
+
+    # ``group_cols`` can be empty for scalar/final metrics. In that case we
+    # only need to group by seed for the first aggregation, then aggregate
+    # directly over the resulting seed-level values.
+    if group_cols:
+        per_seed = (
+            sub.groupby(group_cols + [SEED_COL], sort=False)[value_col]
+               .mean()
+               .reset_index()
+        )
+
+        summary = (
+            per_seed.groupby(group_cols, sort=False)[value_col]
+                     .agg(mean="mean", std="std", n="count")
+                     .reset_index()
+        )
+    else:
+        per_seed = (
+            sub.groupby(SEED_COL, sort=False)[value_col]
+               .mean()
+               .reset_index()
+        )
+
+        summary = pd.DataFrame({
+            "mean": [per_seed[value_col].mean()],
+            "std": [per_seed[value_col].std()],
+            "n": [per_seed[value_col].count()],
+        })
+    summary["std"] = summary["std"].fillna(0.0)
+    return summary
+
+
+def _config_label(cfg, varying):
+    return " | ".join(
+        f"{k}={v}" for k, v in cfg.items()
+        if k in varying and v is not None
+    ) or "default"
+
+
+def _get_method_color(cfg):
+    optimizer = cfg.get("optimizer_choice")
+    adaptive = bool(cfg.get("adaptive_step", False)) if optimizer == "Reduced_network" else False
+    return METHOD_COLORS[(optimizer, adaptive)]
+
+
 def plot_loss_curves(df: pd.DataFrame, fname, param_cols: list[str]):
+    """
+    Plot loss curves using mean ± std over seeds.
+
+    For each configuration and epoch, the loss is first averaged within each
+    seed (e.g. over images), then the mean and std are computed across seeds.
+    """
     df_filled = fill_params(df, param_cols)
     varying = find_varying_params(df_filled, param_cols)
     all_configs = list(get_config_groups(df, param_cols))
@@ -169,32 +235,44 @@ def plot_loss_curves(df: pd.DataFrame, fname, param_cols: list[str]):
         print("  [warning] No configs found for loss curves.")
         return
 
-    all_configs = sort_configs(
-        all_configs
-    )
+    all_configs = sort_configs(all_configs)
 
     for chunk_idx, chunk in enumerate(chunk_configs(all_configs, MAX_CONFIGS)):
         fig, ax = plt.subplots(figsize=FIGSIZE)
-        
 
-        for cfg, sub in chunk :
-            avg = sub.groupby("epoch")["loss"].mean().reset_index()
-            label = " | ".join(
-                f"{k}={v}" for k, v in cfg.items()
-                if k in varying and v is not None
-            ) or "default"
-            ax.plot(avg["epoch"], avg["loss"], label=label, 
-                color=METHOD_COLORS[(cfg["optimizer_choice"],cfg.get("adaptive_step", False))], 
-                linewidth=1.8)
+        for cfg, sub in chunk:
+            summary = _mean_std_over_seeds(
+                sub,
+                value_col="loss",
+                group_cols=["epoch"],
+            )
+
+            label = _config_label(cfg, varying)
+            color = _get_method_color(cfg)
+
+            ax.plot(
+                summary["epoch"],
+                summary["mean"],
+                label=label,
+                color=color,
+                linewidth=1.8,
+            )
+            ax.fill_between(
+                summary["epoch"],
+                summary["mean"] - summary["std"],
+                summary["mean"] + summary["std"],
+                color=color,
+                alpha=0.18,
+                linewidth=0,
+            )
 
         ax.set_xlabel("Iteration")
         ax.set_ylabel("Loss (mean over images)")
-        ax.set_title(f"Loss curves – group {chunk_idx + 1}")
+        ax.set_title(f"Loss curves – mean ± std over seeds – group {chunk_idx + 1}")
         ax.legend(fontsize=8, loc="upper right")
         ax.grid(True, alpha=0.3)
         fig.tight_layout()
 
-        # fname = OUTPUT_DIR / f"loss_curves_group{chunk_idx + 1:02d}.png"
         fname_save = fname + f"_{chunk_idx + 1:02d}.png"
         fig.savefig(fname_save, dpi=150)
         plt.close(fig)
@@ -204,113 +282,174 @@ def plot_loss_curves(df: pd.DataFrame, fname, param_cols: list[str]):
 # ── 3. Final metrics ───────────────────────────────────────────────────────────
 
 METRIC_COLS   = ["test_loss", "test_acc", "elapsed_s"]
-METRIC_LABELS = {"test_loss": "Loss for test data", "test_acc": "Accuracy for test data", "elapsed_s": "Time (s)"}
+METRIC_LABELS = {
+    "test_loss": "Loss for test data",
+    "test_acc": "Accuracy for test data",
+    "elapsed_s": "Time (s)",
+}
 
 
 def plot_final_metrics(df: pd.DataFrame, fname, param_cols: list[str]):
-    df_filled = fill_params(df, param_cols)
-    varying = find_varying_params(df_filled, param_cols)
-    all_configs = list(get_config_groups(df, param_cols))
+    """
+    Plot final metrics as mean +/- std over seeds.
+
+    Important: ``seed`` is NEVER part of the configuration. Each unique
+    combination of experimental parameters gives one bar, while the
+    different seeds of that configuration are used to compute the error bar.
+
+    If several rows are present for the same seed/configuration, they are
+    first averaged within that seed. Then mean/std are computed across seeds.
+    """
+
+    # Safety measure: even if detect_param_cols() was called on a CSV with
+    # an unexpected column setup, seed must never define a configuration.
+    config_param_cols = [c for c in param_cols if c != SEED_COL]
+
+    df_filled = fill_params(df, config_param_cols)
+    varying = find_varying_params(df_filled, config_param_cols)
+
+    # One group = one experimental configuration, independently of seed.
+    all_configs = list(get_config_groups(df, config_param_cols))
 
     if not all_configs:
         print("  [warning] No configs found for final metrics.")
         return
 
-    all_configs = sort_configs(
-        all_configs
-    )
+    all_configs = sort_configs(all_configs)
+
+    print(f"  Found {len(all_configs)} configurations (seeds are aggregated).")
 
     for chunk_idx, chunk in enumerate(chunk_configs(all_configs, MAX_CONFIGS)):
         fig, axes = plt.subplots(1, len(METRIC_COLS), figsize=FIGSIZE_METRICS)
-        # colors = color_cycle(len(chunk))
-        colors = []
-        for opt in METHOD_COLORS:
-            colors.append(METHOD_COLORS[opt])
 
         config_labels = []
         for cfg, _ in chunk:
-            lbl = " | ".join(
-                f"{k}={v}" for k, v in cfg.items()
-                if k in varying and v is not None
-            ) or "default"
-            config_labels.append(lbl)
+            config_labels.append(_config_label(cfg, varying))
 
         x = np.arange(len(chunk))
         bar_width = 0.6
 
+        # One color per configuration, using the fixed method color.
+        colors = [_get_method_color(cfg) for cfg, _ in chunk]
+
         for ax, metric in zip(axes, METRIC_COLS):
             means, stds = [], []
+
             for cfg, sub in chunk:
-                vals = sub[metric].dropna()
-                means.append(vals.mean())
-                stds.append(vals.std() if len(vals) > 1 else 0.0)
+                # First average over observations belonging to each seed,
+                # then compute mean/std across seeds.
+                seed_summary = _mean_std_over_seeds(
+                    sub,
+                    value_col=metric,
+                    group_cols=[],
+                )
 
-            err_kw = {"linewidth": 1.2, "capsize": 4}
-            bars = ax.bar(x, means, width=bar_width, color=colors,
-                          yerr=stds, error_kw=err_kw)
+                means.append(seed_summary["mean"].iloc[0])
+                stds.append(seed_summary["std"].iloc[0])
 
-            y_offset = max(stds) * 0.1 if any(s > 0 for s in stds) else max(means) * 0.01
+            err_kw = {"elinewidth": 1.2, "capsize": 4}
+            bars = ax.bar(
+                x,
+                means,
+                width=bar_width,
+                color=colors,
+                yerr=stds,
+                error_kw=err_kw,
+            )
+
+            # Put the mean value above each bar.
+            max_std = max(stds) if stds else 0.0
+            max_mean = max(abs(m) for m in means) if means else 0.0
+            y_offset = max_std * 0.1 if max_std > 0 else max_mean * 0.01
+            if y_offset == 0:
+                y_offset = 0.01
+
             for bar, mean in zip(bars, means):
-                ax.text(bar.get_x() + bar.get_width() / 2,
-                        bar.get_height() + y_offset,
-                        f"{mean:.3g}", ha="center", va="bottom", fontsize=8)
+                ax.text(
+                    bar.get_x() + bar.get_width() / 2,
+                    bar.get_height() + y_offset,
+                    f"{mean:.3g}",
+                    ha="center",
+                    va="bottom",
+                    fontsize=8,
+                )
 
-            short_labels = [f"cfg{chunk_idx * MAX_CONFIGS + i + 1}"
-                            for i in range(len(chunk))]
+            short_labels = [
+                f"cfg{chunk_idx * MAX_CONFIGS + i + 1}"
+                for i in range(len(chunk))
+            ]
+
             ax.set_title(METRIC_LABELS[metric])
             ax.set_xticks(x)
             ax.set_xticklabels(short_labels, fontsize=8)
             ax.set_ylabel(METRIC_LABELS[metric])
             ax.grid(True, axis="y", alpha=0.3)
 
-        # Legend key below figure
         legend_text = "\n".join(
             f"cfg{chunk_idx * MAX_CONFIGS + i + 1}: {lbl}"
             for i, lbl in enumerate(config_labels)
         )
-        fig.text(0.5, -0.06, legend_text, ha="center", va="top",
-                 fontsize=7.5, family="monospace",
-                 bbox=dict(boxstyle="round,pad=0.4", facecolor="lightyellow", alpha=0.8))
 
-        fig.suptitle(f"Final metrics (mean ± std over images) – group {chunk_idx + 1}")
+        fig.text(
+            0.5,
+            -0.06,
+            legend_text,
+            ha="center",
+            va="top",
+            fontsize=7.5,
+            family="monospace",
+            bbox=dict(
+                boxstyle="round,pad=0.4",
+                facecolor="lightyellow",
+                alpha=0.8,
+            ),
+        )
+
+        fig.suptitle(
+            f"Final metrics (mean +/- std over seeds) – group {chunk_idx + 1}"
+        )
         fig.tight_layout()
 
         fname_save = fname + f"_{chunk_idx + 1:02d}.png"
-
         fig.savefig(fname_save, dpi=150, bbox_inches="tight")
         plt.close(fig)
         print(f"  Saved {fname_save}")
 
 
-
 def plot_mean_dead_ratio(df, fname):
-
-    summary = (
-        df.groupby(["epoch", "layer"])
-          ["dead_ratio"]
-          .mean()
-          .reset_index()
+    """
+    Plot mean dead-neuron ratio with a mean ± std band over seeds.
+    """
+    summary = _mean_std_over_seeds(
+        df,
+        value_col="dead_ratio",
+        group_cols=["epoch", "layer"],
     )
 
-    fig = plt.figure(figsize=(7,4))
+    fig = plt.figure(figsize=(7, 4))
 
-    for layer in summary.layer.unique():
-
+    for layer in summary["layer"].unique():
         sub = summary[summary.layer == layer]
 
         plt.plot(
             sub.epoch,
-            sub.dead_ratio,
+            sub["mean"],
             label=layer,
-            linewidth=2
+            linewidth=2,
+        )
+        plt.fill_between(
+            sub.epoch,
+            sub["mean"] - sub["std"],
+            sub["mean"] + sub["std"],
+            alpha=0.18,
+            linewidth=0,
         )
 
     plt.xlabel("Epoch")
     plt.ylabel("Mean dead ratio")
-    plt.ylim(0,1)
+    plt.ylim(0, 1)
     plt.grid(True)
     plt.legend()
-
     plt.tight_layout()
 
     fig.savefig(fname, dpi=150, bbox_inches="tight")
@@ -318,56 +457,77 @@ def plot_mean_dead_ratio(df, fname):
 
 
 def plot_dead_neuron_count(df, fname):
+    """
+    Plot the mean number of completely dead neurons with std bars over seeds.
+    """
+    df = df.copy()
+    df["dead"] = df["dead_ratio"] == 1
 
-    summary = (
-        df.assign(dead=lambda x: x.dead_ratio == 1)
-          .groupby(["epoch", "layer"])
-          ["dead"]
+    # Count dead neurons for each seed first, then compute mean/std over seeds.
+    per_seed = (
+        df.groupby(["epoch", "layer", SEED_COL], sort=False)["dead"]
           .sum()
           .reset_index()
     )
+    summary = (
+        per_seed.groupby(["epoch", "layer"], sort=False)["dead"]
+                .agg(mean="mean", std="std")
+                .reset_index()
+    )
+    summary["std"] = summary["std"].fillna(0.0)
 
-    fig = plt.figure(figsize=(7,4))
+    fig = plt.figure(figsize=(7, 4))
 
-    for layer in summary.layer.unique():
-
+    for layer in summary["layer"].unique():
         sub = summary[summary.layer == layer]
 
         plt.plot(
             sub.epoch,
-            sub.dead,
+            sub["mean"],
             label=layer,
-            linewidth=2
+            linewidth=2,
+        )
+        plt.fill_between(
+            sub.epoch,
+            sub["mean"] - sub["std"],
+            sub["mean"] + sub["std"],
+            alpha=0.18,
+            linewidth=0,
         )
 
     plt.xlabel("Epoch")
     plt.ylabel("# completely dead neurons")
     plt.grid(True)
     plt.legend()
-
     plt.tight_layout()
 
     fig.savefig(fname, dpi=150, bbox_inches="tight")
     plt.close(fig)
 
-def plot_dead_histogram(df, epoch, fname):
 
+def plot_dead_histogram(df, epoch, fname):
+    """
+    Histogram of dead ratios at one epoch.
+
+    A histogram is intentionally not averaged over seeds: it represents the
+    distribution of neuron-level dead ratios across all available seeds.
+    """
     subset = df[df.epoch == epoch]
 
-    fig = plt.figure(figsize=(7,4))
+    fig = plt.figure(figsize=(7, 4))
 
     plt.hist(
         subset.dead_ratio,
-        bins=20
+        bins=20,
     )
 
     plt.xlabel("Dead ratio")
     plt.ylabel("Number of neurons")
-
     plt.tight_layout()
 
     fig.savefig(fname, dpi=150, bbox_inches="tight")
     plt.close(fig)
+
 
 if __name__ == "__main__":
     

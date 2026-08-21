@@ -30,7 +30,7 @@ FIGSIZE_METRICS = (12, 5)
 NON_PARAM_COLS = {
     "run_id", "image", "seed",
     # metrics
-    "final_L1", "PSNR", "SSIM", "elapsed_s",
+    "final_L1", "elapsed_s",
     "test_loss", "test_acc",
     # series
     "epoch", "loss",
@@ -535,6 +535,7 @@ if __name__ == "__main__":
 
     path_loss = path_dir + "loss_curve.csv"
     path_val = path_dir + "val_curve.csv"
+    path_dead_stats = path_dir + "dead_neurons.csv"
     path_metrics = path_dir + "final_metrics.csv"
 
     # save loss curve
@@ -544,10 +545,17 @@ if __name__ == "__main__":
     plot_loss_curves(df_loss, path_dir + "loss_curve", param_cols_loss)
 
     # save validation curve
-    df_loss    = load_and_clean(path_val)
-    param_cols_loss = detect_param_cols(df_loss)
+    df_val    = load_and_clean(path_val)
+    param_cols_val = detect_param_cols(df_val)
     print("→ Generating loss curves…")
-    plot_loss_curves(df_loss, path_dir + "val_curve", param_cols_loss)
+    plot_loss_curves(df_val, path_dir + "val_curve", param_cols_val)
+
+    # Dead neurons stats
+    df_dead_stats = load_and_clean(path_dead_stats)
+    param_cols_val = detect_param_cols(df_dead_stats)
+    plot_mean_dead_ratio(df_dead_stats, path_dir + "dead_neurons.png")
+    plot_dead_neuron_count(df_dead_stats, path_dir + "dead_neurons_count.png")
+    # plot_dead_histogram(df_dead_stats, epoch, path_dir + "dead_neurons_hist")
 
     # Final metrics
     df_loss    = load_and_clean(path_metrics)

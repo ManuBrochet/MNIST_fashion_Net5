@@ -45,23 +45,24 @@ if __name__ == "__main__":
         patience=10,
         min_delta=1e-4,
 
-        dataset = "CIFAR10",  # "CIFAR10", "CIFAR100", "MNIST_fashion"
+        dataset = "CIFAR10",  # "CIFAR10", "CIFAR100", "MNIST_fashion",
+        seed = 42,
     )
 
     print("L'optimizer utilisé est : ", cfg["optimizer_choice"])
 
-    loss_curve, val_curve, final_metrics = Run_experiment.run_experiment(cfg=cfg, verbose=True, save_model=True)
+    loss_curve, val_curve, final_metrics, _ = Run_experiment.run_experiment(cfg=cfg, verbose=True, save_model=True)
 
     print("loss : ", len(loss_curve))
     print("val : ", len(val_curve))
 
-    path_csv, path_dir = utils_files.save_loss_curve(cfg, loss_curve, benchmark=False, loss_val=True)
+    path_csv, path_dir = utils_files.save_loss_curve(cfg, loss_curve, benchmark=False, wich_curve="loss_curve.csv")
     df_loss    = plot_results.load_and_clean(path_csv)
     param_cols_loss = plot_results.detect_param_cols(df_loss)
     print("→ Generating loss curves…")
     plot_results.plot_loss_curves(df_loss, path_dir / "loss_curve.png", param_cols_loss)
 
-    path_csv, path_dir = utils_files.save_loss_curve(cfg, val_curve, benchmark=False, loss_val=False)
+    path_csv, path_dir = utils_files.save_loss_curve(cfg, val_curve, benchmark=False, wich_curve="val_curve.csv")
     df_loss    = plot_results.load_and_clean(path_csv)
     param_cols_loss = plot_results.detect_param_cols(df_loss)
     print("→ Generating loss curves…")

@@ -47,11 +47,11 @@ def _valid_range(dataset_name, device):
 
 def _get_test_loader(dataset_name, batch_size):
     if dataset_name == "CIFAR10":
-        _, test_loader = load_data.load_CIFAR_10(batch_size)
+        _, _, test_loader = load_data.load_CIFAR_10(batch_size)
     elif dataset_name == "CIFAR100":
-        _, test_loader = load_data.load_CIFAR_100(batch_size)
+        _, _, test_loader = load_data.load_CIFAR_100(batch_size)
     else:
-        _, test_loader = load_data.load_MNIST_fashion(batch_size)
+        _, _, test_loader = load_data.load_MNIST_fashion(batch_size)
     return test_loader
 
 
@@ -315,7 +315,6 @@ if __name__ == "__main__":
             "checkpoints_benchmark/CIFAR10_SGD_layerSize_120_84.pth",
             "checkpoints_benchmark/CIFAR10_Reduced_network_momentum_True_adaptStep_False_SigSize_40_24_4.pth",
             "checkpoints_benchmark/CIFAR10_Reduced_network_momentum_True_adaptStep_True_SigSize_40_24_4.pth",
-            "checkpoints_benchmark/CIFAR10_Reduced_network_iso_momentum_True_adaptStep_False_SigSize_40_24_4.pth"
             ],
         n_images=200,
         epsilons=[0.01, 0.05, 0.1, 0.2],

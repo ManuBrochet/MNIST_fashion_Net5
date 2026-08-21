@@ -119,7 +119,8 @@ def save_dead_neuron_stats(cfg, dead_stats, filename, benchmark = True):
     dead_stats_csv = output_dir / filename
 
     dead_stats_fields   = ["run_id", "dataset", "seed", "optimizer_choice", "LR", "LR_UV", "use_momentum", "beta_momentum", 
-                    "LR_UV", "sigma_size_1", "sigma_size_2", "sigma_size_3", "taille_couche1", "taille_couche2", "adaptive_step", "beta2", "EPOCHS", "epoch", "layer", "neuron", "dead_ratio"]
+                            "sigma_size_1", "sigma_size_2", "sigma_size_3", "taille_couche1", "taille_couche2", "adaptive_step", 
+                            "beta2", "EPOCHS", "epoch", "layer", "neuron", "dead_ratio"]
 
     dead_stats_fh, dead_stats_writer = open_csv(dead_stats_csv, dead_stats_fields)
 

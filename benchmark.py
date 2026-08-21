@@ -160,7 +160,7 @@ def main():
             df = utils_files.save_dead_neuron_stats(cfg, dead_stats, "dead_neurons.csv")
             # plot_results.plot_mean_dead_ratio(df, path_dir / "dead_neurons.png")
             # plot_results.plot_dead_neuron_count(df, path_dir / "dead_neurons_count.png")
-            # plot_results.plot_dead_histogram(df, epoch, fname)
+            # plot_results.plot_dead_histogram(df, epoch, fname)
 
 
             # Final metrics

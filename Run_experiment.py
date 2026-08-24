@@ -91,13 +91,20 @@ def run_experiment(cfg: dict, verbose=False, save_model=False,
             validation_split=validation_split,
             seed=seed,
         )
-    else:
-        dataset_sizes = [1, 256, 10]
-        train_loader, validation_loader, test_loader = load_data.load_MNIST_fashion(
+    elif cfg["dataset"] == "SVHN":
+        dataset_sizes = [3, 400, 100]
+        train_loader, validation_loader, test_loader = load_data.load_SVHN(
             cfg["BATCH_SIZE"],
             validation_split=validation_split,
             seed=seed,
         )
+    # else:
+    #     dataset_sizes = [1, 256, 10]
+    #     train_loader, validation_loader, test_loader = load_data.load_MNIST_fashion(
+    #         cfg["BATCH_SIZE"],
+    #         validation_split=validation_split,
+    #         seed=seed,
+    #     )
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

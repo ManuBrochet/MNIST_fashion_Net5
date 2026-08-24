@@ -208,11 +208,12 @@ def _mean_std_over_seeds(sub: pd.DataFrame, value_col: str, group_cols: list[str
 
 
 def _config_label(cfg, varying):
-    return " | ".join(
-        f"{k}={v}" for k, v in cfg.items()
-        if k in varying and v is not None
-    ) or "default"
-
+    # return " | ".join(
+    #     f"{k}={v}" for k, v in cfg.items()
+    #     if k in varying and v is not None
+    # ) or "default"
+    # return cfg["optimizer_choice"] + "_" + str(cfg["taille_couche1"]) + "_" + ("True" if cfg["adaptive_step"] else "False")
+    return cfg["optimizer_choice"]
 
 def _get_method_color(cfg):
     optimizer = cfg.get("optimizer_choice")
@@ -416,117 +417,288 @@ def plot_final_metrics(df: pd.DataFrame, fname, param_cols: list[str]):
         print(f"  Saved {fname_save}")
 
 
+# ── Dead-neuron configuration helpers ─────────────────────────────────────────
+
+DEAD_CONFIG_NON_PARAM_COLS = {
+    "run_id",
+    "dataset",
+    "seed",
+    "epoch",
+    "layer",
+    "neuron",
+    "dead_ratio",
+}
+
+def _get_dead_neuron_param_cols(df):
+    """
+    Return configuration columns for the dead-neuron CSV.
+
+    `seed` is deliberately excluded: different seeds of the same experiment
+    belong to the same configuration.
+    """
+    return [
+        c for c in df.columns
+        if c not in DEAD_CONFIG_NON_PARAM_COLS
+    ]
+
+
+def _dead_config_groups(df):
+    """
+    Yield (config_index, config_dict, sub_df) for each unique configuration.
+
+    A configuration is defined by all columns except run_id, dataset, seed,
+    epoch, layer, neuron and dead_ratio.
+    """
+    param_cols = _get_dead_neuron_param_cols(df)
+
+    if not param_cols:
+        yield 0, {}, df
+        return
+
+    filled = fill_params(df, param_cols)
+
+    for config_idx, (keys, group) in enumerate(
+        filled.groupby(param_cols, sort=False),
+        start=1,
+    ):
+        if not isinstance(keys, tuple):
+            keys = (keys,)
+
+        cfg = dict(zip(param_cols, keys))
+        cfg = {
+            k: (None if v == NAN_SENTINEL else v)
+            for k, v in cfg.items()
+        }
+
+        yield config_idx, cfg, df.loc[group.index]
+
+
+def _format_dead_config_label(cfg):
+    """Format a configuration dictionary for plot titles."""
+    # if not cfg:
+    #     return "default"
+
+    # return " | ".join(
+    #     f"{key}={value}"
+    #     for key, value in cfg.items()
+    #     if value is not None
+    # )
+    #return cfg["optimizer_choice"] + "_" + str(cfg["taille_couche1"]) + "_" + ("True" if cfg["adaptive_step"] else "False")
+    return cfg["optimizer_choice"]
+
+
+def _safe_filename(text_value):
+    """Convert arbitrary text into a filesystem-safe filename component."""
+    text_value = str(text_value)
+    text_value = re.sub(r"[^\w.-]+", "_", text_value)
+    return text_value.strip("_") or "config"
+
+
 def plot_mean_dead_ratio(df, fname):
     """
-    Plot mean dead-neuron ratio with a mean ± std band over seeds.
+    Create one dead-ratio plot per configuration.
+
+    For each configuration:
+      1. Compute the mean dead ratio for each (seed, epoch, layer).
+      2. Compute mean ± std across seeds.
+      3. Plot one curve per layer with a mean ± std band.
+
+    `seed` is NOT part of the configuration.
     """
-    summary = _mean_std_over_seeds(
-        df,
-        value_col="dead_ratio",
-        group_cols=["epoch", "layer"],
-    )
+    groups = list(_dead_config_groups(df))
 
-    fig = plt.figure(figsize=(7, 4))
+    if not groups:
+        print("  [warning] No configurations found for dead-ratio plots.")
+        return
 
-    for layer in summary["layer"].unique():
-        sub = summary[summary.layer == layer]
+    fname = Path(fname)
+    fname.parent.mkdir(parents=True, exist_ok=True)
 
-        plt.plot(
-            sub.epoch,
-            sub["mean"],
-            label=layer,
-            linewidth=2,
-        )
-        plt.fill_between(
-            sub.epoch,
-            sub["mean"] - sub["std"],
-            sub["mean"] + sub["std"],
-            alpha=0.18,
-            linewidth=0,
+    for config_idx, cfg, sub in groups:
+        per_seed = (
+            sub.groupby(["epoch", "layer", SEED_COL], sort=False)["dead_ratio"]
+               .mean()
+               .reset_index()
         )
 
-    plt.xlabel("Epoch")
-    plt.ylabel("Mean dead ratio")
-    plt.ylim(0, 1)
-    plt.grid(True)
-    plt.legend()
-    plt.tight_layout()
+        summary = (
+            per_seed.groupby(["epoch", "layer"], sort=False)["dead_ratio"]
+                     .agg(mean="mean", std="std")
+                     .reset_index()
+        )
+        summary["std"] = summary["std"].fillna(0.0)
 
-    fig.savefig(fname, dpi=150, bbox_inches="tight")
-    plt.close(fig)
+        fig, ax = plt.subplots(figsize=(8, 5))
+
+        for layer in summary["layer"].unique():
+            layer_sub = summary[summary["layer"] == layer].sort_values("epoch")
+
+            ax.plot(
+                layer_sub["epoch"],
+                layer_sub["mean"],
+                label=layer,
+                linewidth=2,
+            )
+
+            ax.fill_between(
+                layer_sub["epoch"],
+                layer_sub["mean"] - layer_sub["std"],
+                layer_sub["mean"] + layer_sub["std"],
+                alpha=0.18,
+                linewidth=0,
+            )
+
+        label = _format_dead_config_label(cfg)
+
+        ax.set_xlabel("Epoch")
+        ax.set_ylabel("Mean dead ratio")
+        ax.set_ylim(0, 1)
+        ax.set_title(
+            f"Mean dead ratio – config {config_idx}\n{label}",
+            fontsize=10,
+        )
+        ax.grid(True, alpha=0.3)
+        ax.legend()
+        fig.tight_layout()
+
+        out = fname.parent / f"{fname.stem}_config_{config_idx:02d}.png"
+        fig.savefig(out, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+
+        print(f"  Saved {out}")
 
 
 def plot_dead_neuron_count(df, fname):
     """
-    Plot the mean number of completely dead neurons with std bars over seeds.
+    Create one completely-dead-neuron-count plot per configuration.
+
+    For each configuration:
+      1. Determine whether each neuron is completely dead.
+      2. Count dead neurons for each (seed, epoch, layer).
+      3. Compute mean ± std across seeds.
+      4. Plot one curve per layer.
+
+    `seed` is NOT part of the configuration.
     """
-    df = df.copy()
-    df["dead"] = df["dead_ratio"] == 1
+    groups = list(_dead_config_groups(df))
 
-    # Count dead neurons for each seed first, then compute mean/std over seeds.
-    per_seed = (
-        df.groupby(["epoch", "layer", SEED_COL], sort=False)["dead"]
-          .sum()
-          .reset_index()
-    )
-    summary = (
-        per_seed.groupby(["epoch", "layer"], sort=False)["dead"]
-                .agg(mean="mean", std="std")
-                .reset_index()
-    )
-    summary["std"] = summary["std"].fillna(0.0)
+    if not groups:
+        print("  [warning] No configurations found for dead-neuron-count plots.")
+        return
 
-    fig = plt.figure(figsize=(7, 4))
+    fname = Path(fname)
+    fname.parent.mkdir(parents=True, exist_ok=True)
 
-    for layer in summary["layer"].unique():
-        sub = summary[summary.layer == layer]
+    for config_idx, cfg, sub in groups:
+        sub = sub.copy()
+        sub["dead"] = sub["dead_ratio"] == 1
 
-        plt.plot(
-            sub.epoch,
-            sub["mean"],
-            label=layer,
-            linewidth=2,
-        )
-        plt.fill_between(
-            sub.epoch,
-            sub["mean"] - sub["std"],
-            sub["mean"] + sub["std"],
-            alpha=0.18,
-            linewidth=0,
+        per_seed = (
+            sub.groupby(["epoch", "layer", SEED_COL], sort=False)["dead"]
+               .sum()
+               .reset_index()
         )
 
-    plt.xlabel("Epoch")
-    plt.ylabel("# completely dead neurons")
-    plt.grid(True)
-    plt.legend()
-    plt.tight_layout()
+        summary = (
+            per_seed.groupby(["epoch", "layer"], sort=False)["dead"]
+                    .agg(mean="mean", std="std")
+                    .reset_index()
+        )
+        summary["std"] = summary["std"].fillna(0.0)
 
-    fig.savefig(fname, dpi=150, bbox_inches="tight")
-    plt.close(fig)
+        fig, ax = plt.subplots(figsize=(8, 5))
+
+        for layer in summary["layer"].unique():
+            layer_sub = summary[summary["layer"] == layer].sort_values("epoch")
+
+            ax.plot(
+                layer_sub["epoch"],
+                layer_sub["mean"],
+                label=layer,
+                linewidth=2,
+            )
+
+            ax.fill_between(
+                layer_sub["epoch"],
+                layer_sub["mean"] - layer_sub["std"],
+                layer_sub["mean"] + layer_sub["std"],
+                alpha=0.18,
+                linewidth=0,
+            )
+
+        label = _format_dead_config_label(cfg)
+
+        ax.set_xlabel("Epoch")
+        ax.set_ylabel("# completely dead neurons")
+        ax.set_title(
+            f"Completely dead neurons – config {config_idx}\n{label}",
+            fontsize=10,
+        )
+        ax.grid(True, alpha=0.3)
+        ax.legend()
+        fig.tight_layout()
+
+        out = fname.parent / f"{fname.stem}_config_{config_idx:02d}.png"
+        fig.savefig(out, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+
+        print(f"  Saved {out}")
 
 
 def plot_dead_histogram(df, epoch, fname):
     """
-    Histogram of dead ratios at one epoch.
+    Create one dead-ratio histogram per configuration for a given epoch.
 
-    A histogram is intentionally not averaged over seeds: it represents the
-    distribution of neuron-level dead ratios across all available seeds.
+    The histogram shows the neuron-level dead-ratio distribution over all
+    available seeds for that configuration. `seed` is not used to define
+    separate configurations.
     """
-    subset = df[df.epoch == epoch]
+    groups = list(_dead_config_groups(df))
 
-    fig = plt.figure(figsize=(7, 4))
+    if not groups:
+        print("  [warning] No configurations found for dead-ratio histograms.")
+        return
 
-    plt.hist(
-        subset.dead_ratio,
-        bins=20,
-    )
+    fname = Path(fname)
+    fname.parent.mkdir(parents=True, exist_ok=True)
 
-    plt.xlabel("Dead ratio")
-    plt.ylabel("Number of neurons")
-    plt.tight_layout()
+    for config_idx, cfg, sub in groups:
+        subset = sub[sub["epoch"] == epoch]
 
-    fig.savefig(fname, dpi=150, bbox_inches="tight")
-    plt.close(fig)
+        if subset.empty:
+            print(
+                f"  [warning] No data for epoch {epoch} "
+                f"in configuration {config_idx}."
+            )
+            continue
+
+        fig, ax = plt.subplots(figsize=(8, 5))
+
+        ax.hist(
+            subset["dead_ratio"].dropna(),
+            bins=20,
+        )
+
+        label = _format_dead_config_label(cfg)
+
+        ax.set_xlabel("Dead ratio")
+        ax.set_ylabel("Number of neurons")
+        ax.set_title(
+            f"Dead-ratio distribution – config {config_idx}, epoch {epoch}\n"
+            f"{label}",
+            fontsize=10,
+        )
+        ax.grid(True, axis="y", alpha=0.3)
+        fig.tight_layout()
+
+        out = (
+            fname.parent
+            / f"{fname.stem}_config_{config_idx:02d}_epoch_{epoch}.png"
+        )
+        fig.savefig(out, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+
+        print(f"  Saved {out}")
 
 
 if __name__ == "__main__":

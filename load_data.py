@@ -165,3 +165,35 @@ def load_CIFAR_10(batch_size, validation_split=0.1, seed=0):
         validation_split,
         seed
     )
+
+def load_SVHN(batch_size, validation_split=0.1, seed=0):
+
+    transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize(
+            mean=(0.5071, 0.4867, 0.4408),
+            std=(0.2675, 0.2565, 0.2761)
+        )
+    ])
+
+    train_dataset = datasets.SVHN(
+        root="./data",
+        split="train",
+        download=True,
+        transform=transform
+    )
+
+    test_dataset = datasets.SVHN(
+        root="./data",
+        split="test",
+        download=True,
+        transform=transform
+    )
+
+    return _build_loaders(
+        train_dataset,
+        test_dataset,
+        batch_size,
+        validation_split,
+        seed
+    )

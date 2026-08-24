@@ -34,18 +34,18 @@ PARAM_GRID = {
     "sigma_sizes":       [[40, 24, 4]],
     # à checker
     "taille_couches":      [[120, 84], [69, 40]],
-    "adaptive_step":    [False, True],
+    "adaptive_step":    [True],
     "beta2":            [0.9],
     # "seed":             list(range(2))
-    "seed":             [2,3,4]
+    "seed":             [0]
 }
 
 DEFAULT_CFG = dict(
     # HIDDEN_SIZE             = 44,     # Approx 5000 parameters
-    EPOCHS                  = 1001,
+    EPOCHS                  = 501,
     STATS_EVERY             = 5,
     BATCH_SIZE              = 128,
-    dataset                 = "CIFAR10",
+    dataset                 = "SVHN",
     # Early stopping params
     early_stopping          = True,
     patience                = 15,
@@ -102,6 +102,9 @@ def main():
                 continue
         if not cfg["optimizer_choice"] in ("SGD", "Adam"):
             if cfg["taille_couches"] != PARAM_GRID["taille_couches"][0]:
+                continue
+        else :
+            if cfg["taille_couches"] != PARAM_GRID["taille_couches"][1]:
                 continue
 
         configs.append(cfg)

@@ -31,21 +31,20 @@ PARAM_GRID = {
     "proportion_dead_neurons" : [0.5],
     "LR_UV":            [0.1],
     "LR_UV_iso":            [0.1],
-    "sigma_sizes":       [[40, 24, 4]],
+    "sigma_sizes":       [[36, 24, 4]],
     # à checker
     "taille_couches":      [[120, 84], [69, 40]],
     "adaptive_step":    [True],
     "beta2":            [0.9],
-    # "seed":             list(range(2))
-    "seed":             [0]
+    "seed":             list(range(50))
 }
 
 DEFAULT_CFG = dict(
     # HIDDEN_SIZE             = 44,     # Approx 5000 parameters
     EPOCHS                  = 501,
-    STATS_EVERY             = 5,
-    BATCH_SIZE              = 128,
-    dataset                 = "SVHN",
+    STATS_EVERY             = 1,
+    BATCH_SIZE              = 1024,
+    dataset                 = "CIFAR10",
     # Early stopping params
     early_stopping          = True,
     patience                = 15,

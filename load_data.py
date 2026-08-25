@@ -54,7 +54,8 @@ def _build_loaders(train_dataset, test_dataset, batch_size,
     train_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
-        shuffle=True
+        shuffle=True,
+        num_workers = 5
     )
 
     validation_loader = None
@@ -62,13 +63,16 @@ def _build_loaders(train_dataset, test_dataset, batch_size,
         validation_loader = DataLoader(
             validation_dataset,
             batch_size=batch_size,
-            shuffle=False
+            shuffle=False,
+            num_workers = 5
+
         )
 
     test_loader = DataLoader(
         test_dataset,
         batch_size=batch_size,
-        shuffle=False
+        shuffle=False,
+        num_workers = 5
     )
 
     return train_loader, validation_loader, test_loader

@@ -81,7 +81,8 @@ def stiefel_step_torch_momentum(
             # v = beta2 * v + (1 - beta2) * riem_norm(grad_riem)
             v = beta2 * v + (1 - beta2) * weird_riem_norm(A, B)
 
-            v_tilde = max(v, v_tilde)
+            v_tilde = torch.maximum(torch.as_tensor(v, device=X.device, dtype=X.dtype),
+                                torch.as_tensor(v_tilde, device=X.device, dtype=X.dtype))
 
         momentum_transported = momentum - X @ (X.T @ momentum + momentum.T @ X) / 2
 
@@ -106,7 +107,8 @@ def stiefel_step_torch_momentum(
 
     # Exponential
     if adaptative_step:
-        E = torch.matrix_exp((step / np.sqrt(v_tilde)) * K)
+        E = torch.matrix_exp((step / torch.sqrt(
+            torch.as_tensor(v_tilde, device=X.device, dtype=X.dtype))) * K)
 
     else:
         E = torch.matrix_exp(step * K)

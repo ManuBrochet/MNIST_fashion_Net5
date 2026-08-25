@@ -6,6 +6,7 @@ import copy
 
 import utils_math
 import building_network, utils_Riem_opti, load_data, utils_pytorch, utils_math
+import fast_data
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -38,6 +39,30 @@ def apply_optimizer(model, cfg, pt_optimizer, first_iteration, adaptative_step, 
 # ─────────────────────────────────────────────────────────────────────────────
 # Main
 # ─────────────────────────────────────────────────────────────────────────────
+
+
+
+def _gpu_loaders(dataset_name, batch_size, validation_split, seed):
+    """Build GPU-resident loaders for `dataset_name`.
+
+    Uses torchvision only to read the raw arrays; no transform pipeline runs,
+    because normalisation happens on the device inside fast_data.GPULoader.
+    """
+    from torchvision import datasets as _tv
+
+    if dataset_name in ("CIFAR10", "CIFAR100"):
+        cls = _tv.CIFAR10 if dataset_name == "CIFAR10" else _tv.CIFAR100
+        train = cls(root="./data", train=True, download=True)
+        test = cls(root="./data", train=False, download=True)
+    elif dataset_name == "SVHN":
+        train = _tv.SVHN(root="./data", split="train", download=True)
+        test = _tv.SVHN(root="./data", split="test", download=True)
+    else:
+        train = _tv.FashionMNIST(root="./data", train=True, download=True)
+        test = _tv.FashionMNIST(root="./data", train=False, download=True)
+
+    return fast_data.build_loaders(train, test, dataset_name, batch_size,
+                                   validation_split=validation_split, seed=seed)
 
 
 def run_experiment(cfg: dict, verbose=False, save_model=False,
@@ -79,24 +104,18 @@ def run_experiment(cfg: dict, verbose=False, save_model=False,
 
     if cfg["dataset"] == "CIFAR10":
         dataset_sizes = [3, 400, 10]
-        train_loader, validation_loader, test_loader = load_data.load_CIFAR_10(
-            cfg["BATCH_SIZE"],
-            validation_split=validation_split,
-            seed=seed,
+        train_loader, validation_loader, test_loader = _gpu_loaders(
+            "CIFAR10", cfg["BATCH_SIZE"], validation_split, seed
         )
     elif cfg["dataset"] == "CIFAR100":
         dataset_sizes = [3, 400, 100]
-        train_loader, validation_loader, test_loader = load_data.load_CIFAR_100(
-            cfg["BATCH_SIZE"],
-            validation_split=validation_split,
-            seed=seed,
+        train_loader, validation_loader, test_loader = _gpu_loaders(
+            "CIFAR100", cfg["BATCH_SIZE"], validation_split, seed
         )
     elif cfg["dataset"] == "SVHN":
-        dataset_sizes = [3, 400, 100]
-        train_loader, validation_loader, test_loader = load_data.load_SVHN(
-            cfg["BATCH_SIZE"],
-            validation_split=validation_split,
-            seed=seed,
+        dataset_sizes = [3, 400, 10]
+        train_loader, validation_loader, test_loader = _gpu_loaders(
+            "SVHN", cfg["BATCH_SIZE"], validation_split, seed
         )
     # else:
     #     dataset_sizes = [1, 256, 10]
@@ -167,16 +186,18 @@ def run_experiment(cfg: dict, verbose=False, save_model=False,
         loss_curve.append([epoch, loss.item()])
 
         # ── Dead neuron statistics: training subset only ──────────────────────
-        stats = utils_math.compute_dead_neuron_stats(
-            model,
-            train_loader
-        )
+        stats_every = cfg.get("STATS_EVERY", 1)
+        if epoch % stats_every == 0 or epoch == cfg["EPOCHS"] - 1:
+            stats = utils_math.compute_dead_neuron_stats(
+                model,
+                validation_loader
+            )
 
-        dead_stats.append({
-            "epoch": epoch,
-            "fc1": stats["fc1"].cpu(),
-            "fc2": stats["fc2"].cpu(),
-        })
+            dead_stats.append({
+                "epoch": epoch,
+                "fc1": stats["fc1"].cpu(),
+                "fc2": stats["fc2"].cpu(),
+            })
 
         # ── Validation evaluation ────────────────────────────────────────────
         # The validation set comes exclusively from the original training set.

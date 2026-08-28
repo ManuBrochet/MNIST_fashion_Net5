@@ -704,6 +704,7 @@ def plot_dead_histogram(df, epoch, fname):
 if __name__ == "__main__":
     
     path_dir = "benchmark_results/CIFAR10/"
+    # path_dir = "benchmark_results/SVHN/"
 
     path_loss = path_dir + "loss_curve.csv"
     path_val = path_dir + "val_curve.csv"

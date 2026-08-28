@@ -60,3 +60,11 @@ Conf : SSVM
 
 
 Comparer normes spectrales des matrices de poids
+
+
+
+
+Problèmes avec les seeds qui marche pas :
+
+La "meilleure epoch" est une des premières epochs, comme s'il n'apprenait pas
+Effectivement early stopping très très tôt (meilleure epoch + patience)

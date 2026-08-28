@@ -130,7 +130,7 @@ class LeNet5(nn.Module):
 
 def reduced_network_optimizer(
     model, learning_rate, LR_UV, beta_momentum, use_momentum, first_iteration,
-    adaptative_step, beta2
+    adaptative_step, beta2, logsigma_clamp=None
     ):
 
     with torch.no_grad():
@@ -189,13 +189,15 @@ def reduced_network_optimizer(
                     param.v_tilde_buffer = v_tilde_buffer
 
             else :
+                clamp_range = logsigma_clamp if "log_Sigma" in name else None
                 utils_math.opti_euclidienn(
                     param=param, learning_rate=learning_rate, use_momentum=use_momentum,
-                    momentum=momentum, beta_momentum=beta_momentum
+                    momentum=momentum, beta_momentum=beta_momentum, clamp_range=clamp_range
                     )
 
 def reduced_network_optimizer_iso(
     model, learning_rate, LR_UV, beta_momentum, use_momentum, first_iteration,
+    logsigma_clamp=None,
     ):
 
     with torch.no_grad():
@@ -247,9 +249,10 @@ def reduced_network_optimizer_iso(
                     param.B_k_buffer.copy_(B_k)
 
             else :
+                clamp_range = logsigma_clamp if "log_Sigma" in name else None
                 utils_math.opti_euclidienn(
                     param=param, learning_rate=learning_rate, use_momentum=use_momentum,
-                    momentum=momentum, beta_momentum=beta_momentum
+                    momentum=momentum, beta_momentum=beta_momentum, clamp_range=clamp_range
                     )
 
 def basic_optimizer(

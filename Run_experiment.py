@@ -22,7 +22,7 @@ def apply_optimizer(model, cfg, pt_optimizer, first_iteration, adaptative_step, 
         building_network.reduced_network_optimizer(
             model, cfg["LR"], cfg["LR_UV"],
             cfg["beta_momentum"], cfg["use_momentum"], first_iteration,
-            adaptative_step, beta2
+            adaptative_step, beta2, logsigma_clamp=cfg.get("logsigma_clamp")
         )
     elif cfg["optimizer_choice"] == "SGD":
         building_network.basic_optimizer(
@@ -32,7 +32,8 @@ def apply_optimizer(model, cfg, pt_optimizer, first_iteration, adaptative_step, 
     elif cfg["optimizer_choice"] == "Reduced_network_iso":
         building_network.reduced_network_optimizer_iso(
             model, cfg["LR"], cfg["LR_UV_iso"],
-            cfg["beta_momentum"], cfg["use_momentum"], first_iteration
+            cfg["beta_momentum"], cfg["use_momentum"], first_iteration,
+            logsigma_clamp=cfg.get("logsigma_clamp")
         )
 
 
@@ -150,6 +151,7 @@ def run_experiment(cfg: dict, verbose=False, save_model=False,
     loss_curve = []
     val_curve = []
     dead_stats = []
+    diagnostics_log = []  # populated only if cfg["debug_diagnostics"] is True
 
     # ── Early stopping variables ──────────────────────────────────────────────
     best_val_loss = float("inf")
@@ -173,6 +175,40 @@ def run_experiment(cfg: dict, verbose=False, save_model=False,
             logits = model(images)
             loss = criterion(logits, labels)
             loss.backward()
+
+            # Snapshot Sigma / gradient / orthogonality stats BEFORE the
+            # step, while the gradients that are about to be applied are
+            # still populated. Cheap enough to run every batch for a
+            # single debug seed; leave cfg["debug_diagnostics"] unset
+            # (or False) for full benchmark sweeps.
+            if cfg.get("debug_diagnostics", False):
+                diagnostics_log.append({
+                    "epoch": epoch,
+                    "loss": loss.item() if torch.isfinite(loss) else float("nan"),
+                    **utils_math.log_training_diagnostics(model),
+                })
+
+            if not torch.isfinite(loss):
+                print(
+                    f"[seed {seed}] epoch {epoch}: loss is non-finite "
+                    f"({loss.item()}) — aborting this run."
+                )
+                elapsed = round(time.time() - t0, 1)
+                final_metrics = {
+                    "test_loss": float("nan"),
+                    "test_acc": float("nan"),
+                    "elapsed_s": elapsed,
+                    "best_epoch": best_epoch,
+                    "diverged": True,
+                    "diverged_epoch": epoch,
+                }
+                if cfg.get("debug_diagnostics", False):
+                    final_metrics["diagnostics"] = diagnostics_log
+                return loss_curve, val_curve, final_metrics, dead_stats
+
+            grad_clip_norm = cfg.get("grad_clip_norm")
+            if grad_clip_norm is not None:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip_norm)
 
             apply_optimizer(
                 model,
@@ -198,6 +234,34 @@ def run_experiment(cfg: dict, verbose=False, save_model=False,
                 "fc1": stats["fc1"].cpu(),
                 "fc2": stats["fc2"].cpu(),
             })
+
+            # A layer where ~every unit is dead is an absorbing state for
+            # ReLU: no gradient can flow back through it, so the run can
+            # never recover via gradient descent. Rather than waiting out
+            # `patience` epochs on a network that's already decided,
+            # detect it directly and stop.
+            dead_layer_threshold = cfg.get("dead_layer_threshold")
+            if dead_layer_threshold is not None:
+                fc1_dead = stats["fc1"].mean().item()
+                fc2_dead = stats["fc2"].mean().item()
+                if fc1_dead >= dead_layer_threshold or fc2_dead >= dead_layer_threshold:
+                    print(
+                        f"[seed {seed}] epoch {epoch}: fc1={fc1_dead:.1%} / "
+                        f"fc2={fc2_dead:.1%} of units dead — aborting run."
+                    )
+                    elapsed = round(time.time() - t0, 1)
+                    final_metrics = {
+                        "test_loss": float("nan"),
+                        "test_acc": float("nan"),
+                        "elapsed_s": elapsed,
+                        "best_epoch": best_epoch,
+                        "diverged": False,
+                        "dead": True,
+                        "dead_epoch": epoch,
+                    }
+                    if cfg.get("debug_diagnostics", False):
+                        final_metrics["diagnostics"] = diagnostics_log
+                    return loss_curve, val_curve, final_metrics, dead_stats
 
         # ── Validation evaluation ────────────────────────────────────────────
         # The validation set comes exclusively from the original training set.
@@ -273,7 +337,10 @@ def run_experiment(cfg: dict, verbose=False, save_model=False,
         "test_acc": test_acc,
         "elapsed_s": elapsed,
         "best_epoch": best_epoch,
+        "diverged": False,
     }
+    if cfg.get("debug_diagnostics", False):
+        final_metrics["diagnostics"] = diagnostics_log
 
     if save_model:
         if run_name is None:
